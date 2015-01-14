@@ -97,12 +97,13 @@ diff = worker []
     workArray :: Path -> Array -> Array -> Patch
     workArray p _ _ = mempty
 
--- | Apply the a patch to a JSON document.
+-- | Apply a patch to a JSON document.
 patch
     :: Patch
     -> Value
     -> Value
-patch _ _ = error "Data.Aeson.Diff.patch: not implemented"
+patch (Patch []) v = v
+patch (Patch ops) v = error "Data.Aeson.Diff.patch: not implemented"
 
 -- | Decompose a JSON document into 'Path's and atomic values.
 explode

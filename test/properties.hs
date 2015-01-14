@@ -1,13 +1,15 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Main where
 
-import Test.QuickCheck
-import Test.QuickCheck.All
+import           Control.Monad
+import           Data.Aeson
+import qualified Data.Vector         as V
+import           System.Exit
+import           Test.QuickCheck
+import           Test.QuickCheck.All
 
-import Data.Aeson
-import Data.Aeson.Diff
-import qualified Data.Vector as V
+import           Data.Aeson.Diff
 
 instance Arbitrary Value where
     arbitrary = elements
@@ -36,4 +38,10 @@ prop_ExplodeCollapse doc = doc == (collapse . explode) doc
 --
 
 return []
-main = $quickCheckAll
+runTests :: IO Bool
+runTests = $quickCheckAll
+
+main :: IO ()
+main = do
+    result <- runTests
+    unless result exitFailure
