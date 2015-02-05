@@ -1,3 +1,6 @@
+
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | Description: Diff and patch operations for JSON.
 module Data.Aeson.Diff (
     Patch,
@@ -7,18 +10,23 @@ module Data.Aeson.Diff (
     -- * Functions
     diff,
     patch,
+    formatPatch,
+    parsePatch,
     -- * Utility functions
     explode,
     collapse,
 ) where
 
-
 import Control.Applicative
+import Control.Monad.Error.Class
 import Data.Aeson
+import Data.Function
 import qualified Data.HashMap.Strict as HM
+import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Vector as V
 
 -- | Describes the changes between two JSON documents.
@@ -103,7 +111,36 @@ patch
     -> Value
     -> Value
 patch (Patch []) v = v
-patch (Patch ops) v = error "Data.Aeson.Diff.patch: not implemented"
+patch (Patch ops) v = foldl work v ops
+  where
+    work :: Value -> Operation -> Value
+    work v (Del p _o) = v
+    work _ (Ins [] v') = v'
+    work v (Ins p  v') = v
+
+-- | Format a 'Patch'.
+formatPatch :: Patch -> Text
+formatPatch (Patch ops) = T.unlines
+    $ map formatOp ops
+  where
+    formatKey (OKey t) = "." <> t
+    formatKey (AKey i) = "[" <> (T.pack . show $ i) <> "]"
+    formatPath :: [Key] -> Text
+    formatPath p = "@" <> (T.concat . map formatKey $ p)
+    formatOp :: Operation -> Text
+    formatValue :: Value -> Text
+    formatValue v = case v of
+        String t -> t
+        Number s -> T.pack . show $ s
+        Bool b -> T.pack . show $ b
+        Null -> "Null"
+        _ -> ":-("
+    formatOp (Ins k v) = formatPath k <> "\n" <> "+" <> formatValue v
+    formatOp (Del k v) = formatPath k <> "\n" <> "-" <> formatValue v
+
+-- | Parse a 'Patch'.
+parsePatch :: Text -> Either Text Patch
+parsePatch _t = throwError "Cannot parse"
 
 -- | Decompose a JSON document into 'Path's and atomic values.
 explode
@@ -124,7 +161,10 @@ collapse
 collapse = foldl work Null
   where
     work doc ([],  val) = val
-    work (Array arr) (AKey k:rest, val) = Array arr
-    work (Object obj) (OKey k:rest, val) = Object $ modifyObj obj k (const)
+    work (Array arr) (AKey k:rest, val) = Array $ arr V.// [(k, val)]
+    -- TODO: This is a bug in that it discards k
+    work Null        (AKey k:rest, val) = Array $ V.singleton $ work Null (rest, val)
+    work (Object obj) (OKey k:rest, val) = Object $ modifyObj obj k const
+    work Null         (OKey k:rest, val) = Object $ HM.singleton k $ work Null (rest, val)
     work _ _ = error "Data.Aeson.Diff.collapse: not implemented"
     modifyObj obj k f = error "modifyObj: not implemented"

@@ -19,6 +19,7 @@ library
   exposed-modules:     Data.Aeson.Diff
   build-depends:       base >=4.7 && <4.8
                      , aeson
+                     , mtl
                      , text
                      , unordered-containers
                      , vector
@@ -30,7 +31,9 @@ executable             json-diff
   build-depends:       base >=4.7 && <4.8
                      , aeson
                      , aeson-diff
+                     , bytestring
                      , optparse-applicative
+                     , text
 
 executable             json-patch
   default-language:    Haskell2010
@@ -40,6 +43,7 @@ executable             json-patch
                      , aeson
                      , aeson-diff
                      , optparse-applicative
+                     , text
 
 test-suite             properties
   default-language:    Haskell2010
@@ -47,11 +51,12 @@ test-suite             properties
   hs-source-dirs:      test
   main-is:             properties.hs
   build-depends:       base >=4.7 && <4.8
+                     , QuickCheck
                      , aeson
                      , aeson-diff
+                     , quickcheck-instances
                      , text
                      , vector
-                     , QuickCheck
 
 benchmark benchmarks
   type:                exitcode-stdio-1.0
