@@ -7,6 +7,7 @@ module Data.Aeson.Diff (
     patchOperations,
     Path,
     Key(..),
+    Operation(..),
     -- * Functions
     diff,
     patch,
@@ -17,12 +18,9 @@ module Data.Aeson.Diff (
     collapse,
 ) where
 
-import Control.Applicative
 import Control.Monad.Error.Class
 import Data.Aeson
-import Data.Function
 import qualified Data.HashMap.Strict as HM
-import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
@@ -39,8 +37,10 @@ instance Monoid Patch where
 
 -- | Descripts an atomic change to a JSON document.
 data Operation
-    = Ins { changePath :: Path, changeValue :: Value } -- ^ Insert a value at a location.
-    | Del { changePath :: Path, oldValue :: Value } -- ^ Delete the value at a location.
+    = Ins { changePath :: Path, changeValue :: Value }
+    -- ^ Insert a value at a location.
+    | Del { changePath :: Path, oldValue :: Value }
+    -- ^ Delete the value at a location.
   deriving (Eq, Show)
 
 -- | A path through a JSON document is a possibly empty sequence of 'Key's.
@@ -55,13 +55,16 @@ data Key
 -- * Atomic patches
 
 -- | Construct a patch with a single 'Ins' operation.
+ins :: Path -> Value -> Patch
 ins p v = Patch [Ins p v]
 
 -- | Construct a patch with a single 'Del' operation.
+del :: Path -> Value -> Patch
 del p v = Patch [Del p v]
 
 -- | Construct a patch which changes a single value.
-ch p v1 v2 = Patch [Del p v1, Ins p v2]
+ch :: Path -> Value -> Value -> Patch
+ch p v1 v2 = del p v1 <> ins p v2
 
 -- | Compare two JSON documents and generate a patch describing the differences.
 diff
@@ -96,37 +99,37 @@ diff = worker []
             dk = filter (not . (`elem` k2)) k1
             ik = filter (not . (`elem` k1)) k2
             ck = filter (`elem` k2) k1
-            ds = Patch $ map (\k -> Del (p ++ [OKey k]) . fromJust $ HM.lookup k o1) dk
-            is = Patch $ map (\k -> Ins (p ++ [OKey k]) . fromJust $ HM.lookup k o2) ik
-            cs = mconcat $ map (\k -> worker (p ++ [OKey k]) (fromJust $ HM.lookup k o1) (fromJust $ HM.lookup k o2)) ck
+            ds = Patch $ fmap (\k -> Del (p <> [OKey k]) . fromJust $ HM.lookup k o1) dk
+            is = Patch $ fmap (\k -> Ins (p <> [OKey k]) . fromJust $ HM.lookup k o2) ik
+            cs = mconcat $ fmap (\k -> worker (p <> [OKey k]) (fromJust $ HM.lookup k o1) (fromJust $ HM.lookup k o2)) ck
         in ds <> is <> cs
 
     -- Walk the indexes in two arrays, producing a 'Patch'.
     workArray :: Path -> Array -> Array -> Patch
-    workArray p _ _ = mempty
+    workArray _p _ _ = mempty
 
 -- | Apply a patch to a JSON document.
 patch
     :: Patch
     -> Value
     -> Value
-patch (Patch []) v = v
-patch (Patch ops) v = foldl work v ops
+patch (Patch []) val = val
+patch (Patch ops) val= foldl work val ops
   where
     work :: Value -> Operation -> Value
-    work v (Del p _o) = v
+    work v (Del _v _o) = v
     work _ (Ins [] v') = v'
-    work v (Ins p  v') = v
+    work v (Ins _p  _v') = v
 
 -- | Format a 'Patch'.
 formatPatch :: Patch -> Text
 formatPatch (Patch ops) = T.unlines
-    $ map formatOp ops
+    $ fmap formatOp ops
   where
     formatKey (OKey t) = "." <> t
     formatKey (AKey i) = "[" <> (T.pack . show $ i) <> "]"
     formatPath :: [Key] -> Text
-    formatPath p = "@" <> (T.concat . map formatKey $ p)
+    formatPath p = "@" <> (T.concat . fmap formatKey $ p)
     formatOp :: Operation -> Text
     formatValue :: Value -> Text
     formatValue v = case v of
@@ -149,9 +152,8 @@ explode
 explode = worker []
   where
     worker prefix doc = case doc of
-        Array arr  -> concatMap (\(n,v) -> worker (AKey n:prefix) v)
-            $ zip [0..] $ V.toList arr
-        Object obj -> concatMap (\(k,v) -> worker (OKey k:prefix) v) $ HM.toList obj
+        Array arr  -> (\(n,v) -> worker (AKey n:prefix) v) =<< zip [0..] (V.toList arr)
+        Object obj -> (\(k,v) -> worker (OKey k:prefix) v) =<< HM.toList obj
         atomic     -> [(prefix, atomic)]
 
 -- | Collapse pairs of 'Path's and atomic values into a JSON document.
@@ -160,11 +162,11 @@ collapse
     -> Value
 collapse = foldl work Null
   where
-    work doc ([],  val) = val
-    work (Array arr) (AKey k:rest, val) = Array $ arr V.// [(k, val)]
+    work _doc ([],  val) = val
+    work (Array arr) (AKey k:_rest, val) = Array $ arr V.// [(k, val)]
     -- TODO: This is a bug in that it discards k
-    work Null        (AKey k:rest, val) = Array $ V.singleton $ work Null (rest, val)
-    work (Object obj) (OKey k:rest, val) = Object $ modifyObj obj k const
-    work Null         (OKey k:rest, val) = Object $ HM.singleton k $ work Null (rest, val)
+    work Null         (AKey _k:rest, val) = Array . V.singleton $ work Null (rest, val)
+    work (Object obj) (OKey k:_rest, _val) = Object $ modifyObj obj k const
+    work Null         (OKey k:rest, val) = Object . HM.singleton k $ work Null (rest, val)
     work _ _ = error "Data.Aeson.Diff.collapse: not implemented"
-    modifyObj obj k f = error "modifyObj: not implemented"
+    modifyObj _obj _k _f = error "modifyObj: not implemented"

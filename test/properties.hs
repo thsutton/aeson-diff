@@ -1,15 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Main where
 
-import           Control.Monad
-import           Data.Aeson
-import qualified Data.Vector         as V
-import           System.Exit
-import           Test.QuickCheck
-import           Test.QuickCheck.All
+import Control.Monad
+import Data.Aeson
+import qualified Data.Vector as V
+import System.Exit
+import Test.QuickCheck
 
-import           Data.Aeson.Diff
+import Data.Aeson.Diff
 
 instance Arbitrary Value where
     arbitrary = elements

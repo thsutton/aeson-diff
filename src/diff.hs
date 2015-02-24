@@ -54,7 +54,7 @@ jsonFile :: Handle -> IO Value
 jsonFile fp = do
     s <- BS.hGetContents fp
     case decode (BSL.fromStrict s)of
-        Nothing -> error $ "Could not parse as JSON"
+        Nothing -> error "Could not parse as JSON"
         Just v -> return v
 
 run :: Options -> IO ()
