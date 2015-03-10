@@ -1,0 +1,10 @@
+{
+	"age" : 21,
+	"address" : {
+		"company" : "Anchor Systems",
+		"street" : "Level 11 / 201 Elizabeth Street",
+		"locality" : "Sydney",
+		"postcode" : 2000
+	},
+        "lol" : "no"
+}
