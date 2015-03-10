@@ -58,6 +58,7 @@ test-suite             properties
                      , quickcheck-instances
                      , semigroups
                      , text
+                     , unordered-containers
                      , vector
 
 benchmark benchmarks
