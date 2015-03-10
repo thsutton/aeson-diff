@@ -14,9 +14,6 @@ module Data.Aeson.Diff (
     patch,
     formatPatch,
     parsePatch,
-    -- * Utility functions
-    explode,
-    collapse,
 ) where
 
 import Control.Applicative
@@ -195,29 +192,3 @@ formatPatch (Patch ops) = T.unlines
 -- | Parse a 'Patch'.
 parsePatch :: Text -> Either Text Patch
 parsePatch _t = throwError "Cannot parse"
-
--- | Decompose a JSON document into 'Path's and atomic values.
-explode
-    :: Value
-    -> [(Path, Value)]
-explode = worker []
-  where
-    worker prefix doc = case doc of
-        Array arr  -> (\(n,v) -> worker (AKey n:prefix) v) =<< zip [0..] (V.toList arr)
-        Object obj -> (\(k,v) -> worker (OKey k:prefix) v) =<< HM.toList obj
-        atomic     -> [(prefix, atomic)]
-
--- | Collapse pairs of 'Path's and atomic values into a JSON document.
-collapse
-    :: [(Path, Value)]
-    -> Value
-collapse = foldl work Null
-  where
-    work _doc ([],  val) = val
-    work (Array arr) (AKey k:_rest, val) = Array $ arr V.// [(k, val)]
-    -- TODO: This is a bug in that it discards k
-    work Null         (AKey _k:rest, val) = Array . V.singleton $ work Null (rest, val)
-    work (Object obj) (OKey k:_rest, _val) = Object $ modifyObj obj k const
-    work Null         (OKey k:rest, val) = Object . HM.singleton k $ work Null (rest, val)
-    work _ _ = error "Data.Aeson.Diff.collapse: not implemented"
-    modifyObj _obj _k _f = error "modifyObj: not implemented"
