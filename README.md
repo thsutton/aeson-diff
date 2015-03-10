@@ -38,11 +38,13 @@ Usage
 
 ### `json-diff` command
 
-- `json-diff` to compare JSON documents and extract their differences; and
+The `json-diff` command compares two JSON documents and extracts a patch
+describing the differences between the first document and the second.
 
 ### `json-patch` command
 
-- `json-patch` to apply a diff to a JSON document.
+The `json-patch` command applies a patch describing changes to be made to
+a JSON document.
 
 ### `aeson-diff` library
 
