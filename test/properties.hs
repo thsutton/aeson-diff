@@ -29,12 +29,6 @@ prop_DiffApply
     -> Bool
 prop_DiffApply f t = t == patch (diff f t) f
 
--- | Check that (collapse . explode) == id
-prop_ExplodeCollapse
-    :: Value
-    -> Bool
-prop_ExplodeCollapse doc = doc == (collapse . explode) doc
-
 --
 -- Use Template Haskell to automatically run all of the properties above.
 --
