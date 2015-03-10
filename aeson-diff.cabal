@@ -56,6 +56,7 @@ test-suite             properties
                      , aeson-diff
                      , quickcheck-instances
                      , text
+                     , unordered-containers
                      , vector
 
 benchmark benchmarks
