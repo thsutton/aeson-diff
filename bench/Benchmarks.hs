@@ -3,6 +3,7 @@ module Main where
 import Criterion.Main
 
 -- The function we're benchmarking.
+fib :: Int -> Int
 fib m | m < 0     = error "negative!"
       | otherwise = go m
   where
@@ -11,6 +12,7 @@ fib m | m < 0     = error "negative!"
     go n = go (n-1) + go (n-2)
 
 -- Our benchmark harness.
+main :: IO ()
 main = defaultMain [
   bgroup "fib" [ bench "1"  $ whnf fib 1
                , bench "5"  $ whnf fib 5

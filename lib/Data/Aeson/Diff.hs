@@ -42,6 +42,7 @@ import qualified Data.Text as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
+import Data.Distance
 
 -- | Describes the changes between two JSON documents.
 data Patch = Patch
@@ -183,7 +184,11 @@ diff = worker []
 
     -- Walk the indexes in two arrays, producing a 'Patch'.
     workArray :: Path -> Array -> Array -> Patch
-    workArray _p _ _ = mempty
+    workArray path a1 a2 =
+        let f v1 v2 = let p = diff v1 v2 in (length $ patchOperations p, p)
+            extend (Ins p v) = Ins (path <> p) v
+            extend (Del p v) = Del (path <> p) v
+        in Patch . fmap extend . patchOperations . mconcat $ leastChanges f a1 a2
 
 -- | Apply a patch to a JSON document.
 patch
@@ -234,7 +239,6 @@ applyOperation op j = case op of
     -- TODO: If v ~ v', return Null or something, just for fun.
     delete [] _v' _v = Null
     delete _  _v'  v = v
-
 
 -- * Formatting patches
 
