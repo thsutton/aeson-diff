@@ -8,7 +8,9 @@
 -- and extract such a patch, and to apply such a patch to a JSON document.
 
 module Data.Aeson.Diff (
-    Patch(..),
+    -- * Patch
+    Patch,
+    patchOperations,
     Path,
     Key(..),
     Operation(..),
