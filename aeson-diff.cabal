@@ -1,17 +1,21 @@
 name:                aeson-diff
-version:             0.1.1.0
-synopsis:            Diff and patch JSON documents.
--- description:         
+version:             0.1.0.0
+synopsis:            Extract and apply patches to JSON documents.
+description:         Extract and apply patches to JSON documents.
 homepage:            https://github.com/thsutton/aeson-diff
-license:             BSD2
+license:             BSD3
 license-file:        LICENSE
 author:              Thomas Sutton
 maintainer:          me@thomas-sutton.id.au
--- copyright:           
+copyright:           (c) 2015 Thomas Sutton and others.
 category:            Data
 build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
+
+source-repository     HEAD
+  type: git
+  location: https://github.com/thsutton/aeson-diff
 
 library
   default-language:    Haskell2010
@@ -19,6 +23,8 @@ library
   exposed-modules:     Data.Aeson.Diff
   build-depends:       base >=4.7 && <4.8
                      , aeson
+                     , bytestring
+                     , hashable
                      , mtl
                      , scientific
                      , text
