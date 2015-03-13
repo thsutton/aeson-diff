@@ -4,7 +4,7 @@
 
 -- | Description: Diff and patch operations for JSON.
 module Data.Aeson.Diff (
-    Patch,
+    Patch(..),
     patchOperations,
     Path,
     Key(..),
@@ -31,8 +31,9 @@ import qualified Data.Vector as V
 
 
 -- | Describes the changes between two JSON documents.
-data Patch = Patch { patchOperations :: [Operation] }
-  deriving (Eq)
+data Patch = Patch
+  { patchOperations :: [Operation] }
+  deriving (Show, Eq)
 
 instance Monoid Patch where
     mempty = Patch []
@@ -58,7 +59,6 @@ data Key
 $(deriveJSON defaultOptions ''Patch)
 $(deriveJSON defaultOptions ''Operation)
 $(deriveJSON defaultOptions ''Key)
-
 
 --------------------------------------------------------------------------------
 
