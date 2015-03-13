@@ -1,5 +1,6 @@
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 -- | Description: Diff and patch operations for JSON.
 module Data.Aeson.Diff (
@@ -20,12 +21,14 @@ module Data.Aeson.Diff (
 
 import Control.Monad.Error.Class
 import Data.Aeson
+import Data.Aeson.TH
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
+
 
 -- | Describes the changes between two JSON documents.
 data Patch = Patch { patchOperations :: [Operation] }
@@ -51,6 +54,13 @@ data Key
     = OKey Text
     | AKey Int
   deriving (Eq, Ord, Show)
+
+$(deriveJSON defaultOptions ''Patch)
+$(deriveJSON defaultOptions ''Operation)
+$(deriveJSON defaultOptions ''Key)
+
+
+--------------------------------------------------------------------------------
 
 -- * Atomic patches
 
