@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Main where
 
@@ -6,7 +7,7 @@ import Control.Applicative
 import Control.Exception
 import Data.Aeson
 import Data.Aeson.Diff
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
 import Data.Monoid
 import qualified Data.Text.IO as T
@@ -18,20 +19,27 @@ type File = Maybe FilePath
 
 -- | Command-line options.
 data Options = Options
-    { optionOut  :: File
+    { optionJSON :: Bool
+    , optionOut  :: File
     , optionFrom :: File
     , optionTo   :: File
     }
 
 data Configuration = Configuration
-    { cfgOut  :: Handle
+    { cfgJSON :: Bool
+    , cfgOut  :: Handle
     , cfgFrom :: Handle
     , cfgTo   :: Handle
     }
 
 optionParser :: Parser Options
 optionParser = Options
-    <$> option fileP
+    <$> switch
+        (  long "json"
+        <> short 'j'
+        <> help "Output patch in JSON."
+        )
+    <*> option fileP
         (  long "output"
         <> short 'o'
         <> metavar "OUTPUT"
@@ -71,7 +79,8 @@ run opt = bracket (load opt) close process
     load :: Options -> IO Configuration
     load Options{..} =
         Configuration
-            <$> openw optionOut
+            <$> pure  optionJSON
+            <*> openw optionOut
             <*> openr optionFrom
             <*> openr optionTo
 
@@ -85,7 +94,10 @@ process :: Configuration -> IO ()
 process Configuration{..} = do
     json_from <- jsonFile cfgFrom
     json_to <- jsonFile cfgTo
-    T.hPutStrLn cfgOut . formatPatch $ diff json_from json_to
+    let p = diff json_from json_to
+    if cfgJSON
+        then BS.hPutStrLn cfgOut . BSL.toStrict . encode $ p
+        else T.hPutStrLn cfgOut . formatPatch $ p
 
 main :: IO ()
 main = execParser opts >>= run

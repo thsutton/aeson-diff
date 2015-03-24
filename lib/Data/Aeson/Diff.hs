@@ -18,11 +18,14 @@ module Data.Aeson.Diff (
     collapse,
 ) where
 
+import Control.Applicative
+import Control.Monad
 import Control.Monad.Error.Class
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe
 import Data.Monoid
+import Data.Scientific
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -34,6 +37,38 @@ data Patch = Patch { patchOperations :: [Operation] }
 instance Monoid Patch where
     mempty = Patch []
     mappend (Patch p1) (Patch p2) = Patch $ p1 <> p2
+
+instance ToJSON Patch where
+    toJSON (Patch ops) = object [ "patch" .= ops ]
+
+instance FromJSON Patch where
+    parseJSON (Object v) = Patch <$> v .: "patch"
+    parseJSON _ = fail "Patch must be a JSON object."
+
+instance ToJSON Operation where
+    toJSON (Ins p v) = object
+        [ ("change", "insert")
+        , "path"  .= p
+        , "value" .= v
+        ]
+    toJSON (Del p v) = object
+        [ ("change", "delete")
+        , "path" .= p
+        , "value" .= v
+        ]
+
+instance FromJSON Operation where
+    parseJSON (Object v)
+        =  (fixed v "change" (String "insert") *>
+            (Ins <$> v .: "path" <*> v .: "value"))
+        <> (fixed v "change" (String "delete") *>
+            (Del <$> v .: "path" <*> v .: "value"))
+      where
+        fixed o n val = do
+            v' <- o .: n
+            unless (v' == val) . fail . T.unpack $ "Cannot find " <> n <> "."
+            return v'
+    parseJSON _ = fail "Operation must be a JSON object."
 
 -- | Descripts an atomic change to a JSON document.
 data Operation
@@ -51,6 +86,18 @@ data Key
     = OKey Text
     | AKey Int
   deriving (Eq, Ord, Show)
+
+instance ToJSON Key where
+    toJSON (OKey t) = String t
+    toJSON (AKey a) = Number . fromInteger . toInteger $ a
+
+instance FromJSON Key where
+    parseJSON (String t) = return $ OKey t
+    parseJSON (Number n) =
+        case toBoundedInteger n of
+            Nothing -> fail "A numeric key must be a positive whole number."
+            Just n' -> return $ AKey n'
+    parseJSON _ = fail "A key element must be a number or a string."
 
 -- * Atomic patches
 
