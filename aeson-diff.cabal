@@ -68,6 +68,19 @@ test-suite             properties
                      , unordered-containers
                      , vector
 
+test-suite             distance-properties
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test, lib
+  main-is:             distance.hs
+  other-modules:
+      Data.Distance
+  build-depends:       base >=4.7 && <4.8
+                     , QuickCheck
+                     , quickcheck-instances
+                     , semigroups
+                     , vector
+
 benchmark benchmarks
   type:                exitcode-stdio-1.0
   default-language:    Haskell2010
