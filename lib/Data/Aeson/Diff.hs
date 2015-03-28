@@ -188,7 +188,8 @@ diff = worker []
         let f v1 v2 = let p = diff v1 v2 in (length $ patchOperations p, p)
             extend (Ins p v) = Ins (path <> p) v
             extend (Del p v) = Del (path <> p) v
-        in Patch . fmap extend . patchOperations . mconcat $ leastChanges f a1 a2
+        in Patch []
+        -- . fmap extend . patchOperations . mconcat $ leastChanges f a1 a2
 
 -- | Apply a patch to a JSON document.
 patch

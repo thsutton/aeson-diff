@@ -1,4 +1,5 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections   #-}
 
 -- | Description: Find differences between sequences based on edit metrics.
 --
@@ -8,11 +9,32 @@ module Data.Distance where
 
 import Control.Arrow ((***))
 import Data.Function
-import Data.List
+import Data.List hiding (insert, delete)
 import Data.Maybe
 import Data.Monoid
 
-type ChangeMatrix e = [( (Int,Int) , (Int, [C e]) )]
+data Params e c = Params
+    { equivalent :: e -> e -> Bool
+    , delete :: Int -> e -> c
+    , insert :: Int -> e -> c
+    , substitute :: Int -> e -> e -> c
+    , cost :: c -> Int
+    , nil :: c
+    }
+
+strParams :: Params Char (C Char)
+strParams = Params{..}
+  where
+    equivalent = (==)
+    delete _ = D
+    insert _ = I
+    substitute _ = S
+    nil = K
+    cost op = case op of
+         D{} -> 1
+         I{} -> 1
+         S{} -> 1
+         _   -> 0
 
 data C a
     = K
@@ -21,23 +43,35 @@ data C a
     | S a a
   deriving (Show, Eq)
 
+type ChangeMatrix c = [( (Int,Int) , (Int, [c]) )]
+
 -- | Find the least-cost sequence of changes to transform one vector into
 -- another.
-leastChanges :: Eq e => [e] -> [e] -> (Int, [C e])
-leastChanges ss tt = fmap reverse . snd . last $ changes ss tt
+leastChanges :: Params e c -> [e] -> [e] -> (Int, [c])
+leastChanges p ss tt = case fmap reverse . snd . last $ changes p ss tt of
+    -- No cost means no change.
+    (0, _)   -> (0, [])
+    -- Drop a leading K (which comes from the initial e~e)
+    (n, h:r) -> (n, r)
+    -- Otherwise leave it alone.
+    o -> o
 
 -- | Calculate the complete matrix of changes which transform one sequence of
 -- values into another.
-changes :: Eq e => [e] -> [e] -> ChangeMatrix e
-changes ss tt = sortBy (compare `on` fst) f
+changes :: Params e c -> [e] -> [e] -> ChangeMatrix c
+changes p@Params{..} ss tt = sortBy (compare `on` fst) f
   where
-    f =  [ ((0  ,   0), (0,   [K  ])) ]
-      <> [ ((i+1,   0), (1+i, [D s])) | (i,s) <- items ss]
-      <> [ ((0  , j+1), (1+j, [I t])) | (j,t) <- items tt]
+    f =  [ ((0  ,   0), (0,   [ nil ])) ]
+      <> [ ((i+1,   0), (1+i, s))
+         | (i,s) <- items . map (\i -> map (delete i) . reverse $ take i ss) $ [1..length ss]
+         ]
+      <> [ ((0  , j+1), (1+j, t))
+         | (j,t) <- items . map (\i -> map (insert i) . reverse $ take i tt) $ [1..length tt]
+         ]
       <> [ ((i+1, j+1), o)
          | (i,s) <- items ss
          , (j,t) <- items tt
-         , let o = choose (i,s) (j,t) f
+         , let o = choose p (i,s) (j,t) f
          ]
     items = zip [0..]
 
@@ -47,21 +81,21 @@ changes ss tt = sortBy (compare `on` fst) f
 -- @(i+1,j)@, and @(i, j+1)@ (i.e. the cells to the top-left, top, and left of
 -- the cell being determined).
 choose
-    :: (Eq e)
-    => (Int, e) -- ^ \"From\" index and value.
+    :: Params e c
+    -> (Int, e) -- ^ \"From\" index and value.
     -> (Int, e) -- ^ \"To\" index and value.
-    -> ChangeMatrix e -- ^ Previous changes.
-    -> (Int, [C e]) -- ^ Cost and change selected.
-choose (i,s) (j,t) m =
+    -> ChangeMatrix c -- ^ Previous changes.
+    -> (Int, [c]) -- ^ Cost and change selected.
+choose Params{..} (i,s) (j,t) m =
     let tl    = get m    i    j
         top   = get m    i (1+j)
         left  = get m (1+i)    j
-    in if s == t
-        then (fst tl, K : snd tl)
+    in if s `equivalent` t
+        then (fst tl, nil : snd tl)
         else minimumBy (compare `on` fst)
-            [ (1 +) *** (D s   :) $ top
-            , (1 +) *** (I t   :) $ left
-            , (1 +) *** (S s t :) $ tl
+            [ let c = delete i s in (cost c +) *** (c:) $ top
+            , let c = insert i t in (cost c +) *** (c:) $ left
+            , let c = substitute i s t in (cost c +) *** (c:) $ tl
             ]
   where
     get mat x y = fromMaybe
