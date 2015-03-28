@@ -14,18 +14,18 @@ import Test.QuickCheck.Instances ()
 
 import Data.Distance
 
-strParam :: ChangeParameters Char (Maybe Char)
-strParam = ChangeParameters
-    (error "Cannot diff")
-    (error "Cannot cost")
-
 -- | Patch extracted from identical documents should be mempty.
 prop_diff_id
     :: String
     -> Bool
 prop_diff_id s =
-    let v = V.fromList s
-    in leastChanges strParam v v == mempty
+    leastChanges s s == (0, [ K | _ <- s])
+
+prop_diff_delete
+    :: NonEmptyList Char
+    -> Bool
+prop_diff_delete (NonEmpty s) =
+    leastChanges s "" == (length s, [ D c | c <- s])
 
 --
 -- Use Template Haskell to automatically run all of the properties above.
