@@ -200,7 +200,6 @@ diff = worker []
         substitute i v v' =
             let p = path ++ [AKey i]
                 Patch ops = diff v v'
-            -- TODO(thsutton) Recursive diff here.
             in fmap (modifyPath (p ++)) ops
         cost = length
         positionOffset = sum . map pos
