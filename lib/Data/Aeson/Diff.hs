@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
 -- | Description: Extract and apply patches on JSON documents.
@@ -182,14 +183,24 @@ diff = worker []
                 chg_keys
         in deletions <> insertions <> mconcat changes
 
-    -- Walk the indexes in two arrays, producing a 'Patch'.
+    -- Use an adaption of the Wagner-Fischer algorithm to find the shortest
+    -- sequence of changes between two JSON arrays.
     workArray :: Path -> Array -> Array -> Patch
-    workArray path a1 a2 =
-        let f v1 v2 = let p = diff v1 v2 in (length $ patchOperations p, p)
-            extend (Ins p v) = Ins (path <> p) v
-            extend (Del p v) = Del (path <> p) v
-        in Patch []
-        -- . fmap extend . patchOperations . mconcat $ leastChanges f a1 a2
+    workArray path ss tt = Patch . snd . fmap concat $ leastChanges params
+        (V.toList ss) (V.toList tt)
+      where
+        params = Params{..}
+        equivalent = (==)
+        delete i v = [Del (path ++ [AKey i]) v]
+        insert i v = [Ins (path ++ [AKey i]) v]
+        substitute i v v' =
+            let p = path ++ [AKey i]
+            -- TODO(thsutton) Recursive diff here.
+            in [Del p v, Ins p v']
+        cost = length
+        positionOffset = sum . map pos
+        pos Del{} = 0
+        pos Ins{} = 1
 
 -- | Apply a patch to a JSON document.
 patch
