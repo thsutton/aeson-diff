@@ -118,6 +118,10 @@ instance FromJSON Key where
             Just n' -> return $ AKey n'
     parseJSON _ = fail "A key element must be a number or a string."
 
+-- | Modify the 'Path' of an 'Operation'.
+modifyPath :: (Path -> Path) -> Operation -> Operation
+modifyPath path op = op { changePath = path (changePath op) }
+
 -- * Atomic patches
 
 -- | Construct a patch with a single 'Ins' operation.
@@ -195,8 +199,9 @@ diff = worker []
         insert i v = [Ins (path ++ [AKey i]) v]
         substitute i v v' =
             let p = path ++ [AKey i]
+                Patch ops = diff v v'
             -- TODO(thsutton) Recursive diff here.
-            in [Del p v, Ins p v']
+            in fmap (modifyPath (p ++)) ops
         cost = length
         positionOffset = sum . map pos
         pos Del{} = 0
