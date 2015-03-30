@@ -3,8 +3,13 @@
 
 -- | Description: Find differences between sequences based on edit metrics.
 --
--- This module implements a fairly generic approach to finding the smallest
--- difference between two sequences using the Wagner-Fischer algorithm.
+-- This module implements a variation on the Wagner-Fischer algorithm to find
+-- the shortest sequences of operations which transformers one sequence of
+-- values into another.
+--
+-- Define an instance of 'Params' for your value and operation types and use
+-- 'leastChanges' to find the cost and changes to transform one list into
+-- another.
 module Data.Distance where
 
 import Control.Arrow ((***))
@@ -13,21 +18,29 @@ import Data.List hiding (insert, delete)
 import Data.Maybe
 import Data.Monoid
 
+-- | Operations invoked by the Wagner-Fischer algorithm.
 data Params e c = Params
     { equivalent :: e -> e -> Bool
+    -- ^ Are two values equivalent?
     , delete :: Int -> e -> c
+    -- ^ Delete the element at an index.
     , insert :: Int -> e -> c
+    -- ^ Insert an element at an index.
     , substitute :: Int -> e -> e -> c
+    -- ^ Substitute an element at an index.
     , cost :: c -> Int
+    -- ^ Cost of a change.
     , positionOffset :: c -> Int
+    -- ^ Positions to advance after a change. E.g. @0@ for a deletion.
     }
-
-type ChangeMatrix c = [( (Int,Int) , (Int, [Maybe c]) )]
 
 -- | Find the least-cost sequence of changes to transform one vector into
 -- another.
 leastChanges :: Params e c -> [e] -> [e] -> (Int, [c])
 leastChanges p ss tt = fmap (catMaybes . reverse) . snd . last $ changes p ss tt
+
+-- | Matrix used to find least cost sequence of changes.
+type ChangeMatrix c = [( (Int,Int) , (Int, [Maybe c]) )]
 
 -- | Calculate the complete matrix of changes which transform one sequence of
 -- values into another.
