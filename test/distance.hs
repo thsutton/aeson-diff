@@ -27,15 +27,15 @@ runC :: [C v] -> [v] -> [v]
 runC [] l = l
 runC (D i _ : r) l =
     let (h,t) = splitAt i l
-        l' = h ++ tail t
+        l' = h <> tail t
     in runC r l'
 runC (I i a : r) l =
     let (h,t) = splitAt i l
-        l' = h ++ [a] ++ t
+        l' = h <> [a] <> t
     in runC r l'
 runC (S i a a' : r) l =
     let (h,t) = splitAt i l
-        l' = h ++ [a'] ++ tail t
+        l' = h <> [a'] <> tail t
     in runC r l'
 
 -- | Edit parameters for 'String'.

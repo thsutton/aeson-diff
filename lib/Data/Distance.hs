@@ -14,21 +14,21 @@ module Data.Distance where
 
 import Control.Arrow ((***))
 import Data.Function
-import Data.List hiding (insert, delete)
+import Data.List hiding (delete, insert)
 import Data.Maybe
 import Data.Monoid
 
 -- | Operations invoked by the Wagner-Fischer algorithm.
 data Params e c = Params
-    { equivalent :: e -> e -> Bool
+    { equivalent     :: e -> e -> Bool
     -- ^ Are two values equivalent?
-    , delete :: Int -> e -> c
+    , delete         :: Int -> e -> c
     -- ^ Delete the element at an index.
-    , insert :: Int -> e -> c
+    , insert         :: Int -> e -> c
     -- ^ Insert an element at an index.
-    , substitute :: Int -> e -> e -> c
+    , substitute     :: Int -> e -> e -> c
     -- ^ Substitute an element at an index.
-    , cost :: c -> Int
+    , cost           :: c -> Int
     -- ^ Cost of a change.
     , positionOffset :: c -> Int
     -- ^ Positions to advance after a change. E.g. @0@ for a deletion.
@@ -49,13 +49,13 @@ changes p@Params{..} ss tt = sortBy (compare `on` fst) f
   where
     f =  [ ((0  ,   0), (0,   [])) ]
          -- Deletes across the top.
-      <> [ ((i+1,   0), (1+i, map Just s))
-         | (i,s) <- items . map (\i -> map (delete 0) . reverse $ take i ss)
+      <> [ ((i+1,   0), (1+i, fmap Just s))
+         | (i,s) <- items . fmap (\i -> fmap (delete 0) . reverse $ take i ss)
             $ [1..length ss]
          ]
          -- Inserts down the side.
-      <> [ ((0  , j+1), (1+j, map Just t))
-         | (j,t) <- items . map reverse . tail . inits $ zipWith insert [0..] tt
+      <> [ ((0  , j+1), (1+j, fmap Just t))
+         | (j,t) <- items . fmap reverse . tail . inits $ zipWith insert [0..] tt
          ]
          -- Changes in the middle.
       <> [ ((i+1, j+1), o)
@@ -97,7 +97,7 @@ choose Params{..} (i,s) (j,t) m =
                 in (cost c +) *** (Just c :) $ tl
             ]
   where
-    pos = sum . map (maybe 1 positionOffset)
+    pos = sum . fmap (maybe 1 positionOffset)
     get :: ChangeMatrix c -> Int -> Int -> (Int, [Maybe c])
     get mat x y = fromMaybe
         (error $ "Unable to get " <> show (x,y) <> " from change matrix")
