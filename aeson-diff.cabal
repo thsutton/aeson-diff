@@ -24,7 +24,6 @@ library
                      , Data.Distance
   build-depends:       base >=4.7 && <4.9
                      , aeson
-                     , bytestring
                      , hashable
                      , mtl
                      , scientific
@@ -50,8 +49,8 @@ executable             json-patch
   build-depends:       base
                      , aeson
                      , aeson-diff
+                     , bytestring
                      , optparse-applicative
-                     , text
 
 test-suite             properties
   default-language:    Haskell2010
@@ -63,7 +62,6 @@ test-suite             properties
                      , aeson
                      , aeson-diff
                      , quickcheck-instances
-                     , semigroups
                      , text
                      , unordered-containers
                      , vector
@@ -78,5 +76,4 @@ test-suite             distance-properties
   build-depends:       base
                      , QuickCheck
                      , quickcheck-instances
-                     , semigroups
                      , vector
