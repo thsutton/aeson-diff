@@ -233,16 +233,18 @@ applyOperation op j = case op of
         (Just . insert path v' . fromMaybe (Array mempty)) v
     insert (OKey n : path) v' (Object m) = Object $ hmModify n
         (Just . insert path v' . fromMaybe (Object mempty)) m
-    -- Type mismatch; let's throw away the thing we weren't expecting!
+    -- Hey I just met you / And this is crazy
+    -- But here's my data / Discard it maybe?
     --
-    -- TODO: I have no idea what to do here.
+    -- Type mismatch; let's throw away the thing we weren't expecting!
     insert (AKey _ : path) v' v = Array $ V.singleton (insert path v' v)
     insert (OKey n : path) v' v = Object $ HM.singleton n (insert path v' v)
 
     delete :: Path -> Value -> Value -> Value
     -- Apply a local change.
     --
-    -- TODO Should check whether the deleted item is something like @v'@.
+    -- TODO We might want to check that the item addressed by the key is
+    -- similar to @_v'@.
     delete [AKey i] _v' (Array  v) = Array  $ vDelete   i v
     delete [OKey n] _v' (Object m) = Object $ HM.delete n m
     -- Traverse for deeper changes.
@@ -251,10 +253,7 @@ applyOperation op j = case op of
     delete (OKey n : rest) v' (Object m) = Object $ hmModify n
         (fmap (delete rest v')) m
     -- Type mismatch: clearly the thing we're deleting isn't here.
-    --
-    -- TODO: If v ~ v', return Null or something, just for fun.
-    delete [] _v' _v = Null
-    delete _  _v'  v = v
+    delete _  _v' v = v
 
 -- * Formatting patches
 
