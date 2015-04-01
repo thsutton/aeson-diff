@@ -93,7 +93,7 @@ instance FromJSON Operation where
 data Operation
     = Ins { changePath :: Path, changeValue :: Value }
     -- ^ Insert a value at a location.
-    | Del { changePath :: Path, oldValue :: Value }
+    | Del { changePath :: Path, changeValue :: Value }
     -- ^ Delete the value at a location.
   deriving (Eq, Show)
 
@@ -201,7 +201,7 @@ diff = worker []
             let p = path ++ [AKey i]
                 Patch ops = diff v v'
             in fmap (modifyPath (p ++)) ops
-        cost = length
+        cost = sum . map (valueSize . changeValue)
         positionOffset = sum . map pos
         pos Del{} = 0
         pos Ins{} = 1
@@ -287,6 +287,15 @@ parsePatch _t = throwError "Cannot parse"
 -- $ These are some utility functions used in the functions defined above. Mostly
 -- they just fill gaps in the APIs of the "Data.Vector" and "Data.HashMap.Strict"
 -- modules.
+
+-- | Estimate the size of a JSON 'Value'.
+--
+-- This is used in the diff cost metric function.
+valueSize :: Value -> Int
+valueSize val = case val of
+    Object o -> sum . map valueSize . HM.elems $ o
+    Array  a -> V.sum $ V.map valueSize a
+    _        -> 1
 
 -- | Delete an element in a vector.
 vDelete :: Int -> Vector a -> Vector a
