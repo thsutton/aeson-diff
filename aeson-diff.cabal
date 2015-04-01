@@ -1,24 +1,30 @@
 name:                aeson-diff
 version:             0.1.1.0
-synopsis:            Diff and patch JSON documents.
--- description:         
+synopsis:            Extract and apply patches to JSON documents.
+description:         Extract and apply patches to JSON documents.
 homepage:            https://github.com/thsutton/aeson-diff
-license:             BSD2
+license:             BSD3
 license-file:        LICENSE
 author:              Thomas Sutton
 maintainer:          me@thomas-sutton.id.au
--- copyright:           
+copyright:           (c) 2015 Thomas Sutton and others.
 category:            Data
 build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
 
+source-repository     HEAD
+  type: git
+  location: https://github.com/thsutton/aeson-diff
+
 library
   default-language:    Haskell2010
   hs-source-dirs:      lib
   exposed-modules:     Data.Aeson.Diff
-  build-depends:       base >=4.7 && <4.8
+                     , Data.Distance
+  build-depends:       base >=4.7 && <4.9
                      , aeson
+                     , hashable
                      , mtl
                      , scientific
                      , text
@@ -29,7 +35,7 @@ executable             json-diff
   default-language:    Haskell2010
   hs-source-dirs:      src
   main-is:             diff.hs
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base
                      , aeson
                      , aeson-diff
                      , bytestring
@@ -40,31 +46,34 @@ executable             json-patch
   default-language:    Haskell2010
   hs-source-dirs:      src
   main-is:             patch.hs
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base
                      , aeson
                      , aeson-diff
+                     , bytestring
                      , optparse-applicative
-                     , text
 
 test-suite             properties
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             properties.hs
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base
                      , QuickCheck
                      , aeson
                      , aeson-diff
                      , quickcheck-instances
-                     , semigroups
                      , text
+                     , unordered-containers
                      , vector
 
-benchmark benchmarks
-  type:                exitcode-stdio-1.0
+test-suite             distance-properties
   default-language:    Haskell2010
-  hs-source-dirs:      bench
-  main-is:             Benchmarks.hs
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test, lib
+  main-is:             distance.hs
+  other-modules:
+      Data.Distance
   build-depends:       base
-                     , criterion
-                     , aeson-diff
+                     , QuickCheck
+                     , quickcheck-instances
+                     , vector
