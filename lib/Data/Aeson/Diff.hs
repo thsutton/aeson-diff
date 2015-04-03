@@ -6,25 +6,20 @@
 -- This module implements data types and operations to represent the
 -- differences between JSON documents (i.e. a patch), to compare JSON documents
 -- and extract such a patch, and to apply such a patch to a JSON document.
-
 module Data.Aeson.Diff (
-    -- * Patch
+    -- * Patches
     Patch,
     patchOperations,
     Path,
     Key(..),
     Operation(..),
+
     -- * Functions
     diff,
     patch,
-    formatPatch,
-    parsePatch,
     applyOperation,
-    -- * Utilitied
-    vDelete,
-    vInsert,
-    vModify,
-    hmModify,
+
+    formatPatch,
 ) where
 
 import Control.Applicative
@@ -42,7 +37,7 @@ import qualified Data.Text as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
-import Data.Distance
+import Data.Vector.Distance
 
 -- | Describes the changes between two JSON documents.
 data Patch = Patch
@@ -189,9 +184,9 @@ diff = worker []
     -- Use an adaption of the Wagner-Fischer algorithm to find the shortest
     -- sequence of changes between two JSON arrays.
     workArray :: Path -> Array -> Array -> Patch
-    workArray path ss tt = Patch . snd . fmap concat $ leastChanges params
-        (V.toList ss) (V.toList tt)
+    workArray path ss tt = Patch . snd . fmap concat $ leastChanges params ss tt
       where
+        params :: Params Value [Operation] (Sum Int)
         params = Params{..}
         equivalent = (==)
         delete i v = [Del (path <> [AKey i]) v]
@@ -200,7 +195,7 @@ diff = worker []
             let p = path <> [AKey i]
                 Patch ops = diff v v'
             in fmap (modifyPath (p <>)) ops
-        cost = sum . fmap (valueSize . changeValue)
+        cost = Sum . sum . fmap (valueSize . changeValue)
         positionOffset = sum . fmap pos
         pos Del{} = 0
         pos Ins{} = 1
