@@ -41,10 +41,31 @@ Usage
 The `json-diff` command compares two JSON documents and extracts a patch
 describing the differences between the first document and the second.
 
+````
+Usage: json-diff [-j|--json] [-o|--output OUTPUT] FROM TO
+Generate a patch between two JSON documents.
+
+Available options:
+    -h,--help                Show this help text
+    -j,--json                Output patch in JSON.
+````
+
 ### `json-patch` command
 
 The `json-patch` command applies a patch describing changes to be made to
 a JSON document.
+
+````
+Usage: json-patch [-j|--json] [-o|--output OUTPUT] PATCH FROM
+Generate a patch between two JSON documents.
+
+Available options:
+  -h,--help                Show this help text
+  -j,--json                Patch is in JSON format.
+  -o,--output OUTPUT       Destination for patched JSON.
+  PATCH                    Patch to apply.
+  FROM                     JSON file to patch.
+````
 
 ### `aeson-diff` library
 
