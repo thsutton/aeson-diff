@@ -1,5 +1,5 @@
 name:                aeson-diff
-version:             0.1.1.0
+version:             0.1.1.1
 synopsis:            Extract and apply patches to JSON documents.
 description:         Extract and apply patches to JSON documents.
 homepage:            https://github.com/thsutton/aeson-diff
