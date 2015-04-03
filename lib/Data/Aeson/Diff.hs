@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 
 -- | Description: Extract and apply patches on JSON documents.
 --
@@ -195,14 +194,14 @@ diff = worker []
       where
         params = Params{..}
         equivalent = (==)
-        delete i v = [Del (path ++ [AKey i]) v]
-        insert i v = [Ins (path ++ [AKey i]) v]
+        delete i v = [Del (path <> [AKey i]) v]
+        insert i v = [Ins (path <> [AKey i]) v]
         substitute i v v' =
-            let p = path ++ [AKey i]
+            let p = path <> [AKey i]
                 Patch ops = diff v v'
-            in fmap (modifyPath (p ++)) ops
-        cost = sum . map (valueSize . changeValue)
-        positionOffset = sum . map pos
+            in fmap (modifyPath (p <>)) ops
+        cost = sum . fmap (valueSize . changeValue)
+        positionOffset = sum . fmap pos
         pos Del{} = 0
         pos Ins{} = 1
 
@@ -292,7 +291,7 @@ parsePatch _t = throwError "Cannot parse"
 -- This is used in the diff cost metric function.
 valueSize :: Value -> Int
 valueSize val = case val of
-    Object o -> sum . map valueSize . HM.elems $ o
+    Object o -> sum . fmap valueSize . HM.elems $ o
     Array  a -> V.sum $ V.map valueSize a
     _        -> 1
 
