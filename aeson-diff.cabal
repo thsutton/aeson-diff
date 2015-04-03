@@ -10,7 +10,7 @@ maintainer:          me@thomas-sutton.id.au
 copyright:           (c) 2015 Thomas Sutton and others.
 category:            JSON, Web, Algorithms
 build-type:          Simple
-extra-source-files:  README.md
+extra-source-files:  README.md, CHANGELOG.md
 cabal-version:       >=1.10
 
 source-repository     HEAD
