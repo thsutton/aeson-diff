@@ -23,6 +23,7 @@ library
   exposed-modules:     Data.Aeson.Diff
   build-depends:       base >=4.7 && <4.9
                      , aeson >=0.8 && <0.9
+                     , bytestring
                      , edit-distance-vector >=1.0 && <2.0
                      , hashable
                      , mtl
