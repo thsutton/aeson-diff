@@ -36,7 +36,7 @@ cabal sandbox install ~/Downloads/aeson-diff/
 Usage
 -----
 
-### `json-diff` command
+### json-diff command
 
 The `json-diff` command compares two JSON documents and extracts a patch
 describing the differences between the first document and the second.
@@ -50,7 +50,7 @@ Available options:
     -j,--json                Output patch in JSON.
 ````
 
-### `json-patch` command
+### json-patch command
 
 The `json-patch` command applies a patch describing changes to be made to
 a JSON document.
@@ -67,7 +67,7 @@ Available options:
   FROM                     JSON file to patch.
 ````
 
-### `aeson-diff` library
+### aeson-diff library
 
 The `aeson-diff` library exports as single module: `Data.Aeson.Diff`. This
 exports `diff` and `patch` functions which do exactly what might be expected:
@@ -78,5 +78,8 @@ and constructs a new `Patch` describing the changes.
 - `patch :: Patch -> Value -> Value` applies the changes in a `Patch` to a JSON
 `Value`.
 
+For more complete information, see the [documentation][docs].
+
 [badge]: https://travis-ci.org/thsutton/aeson-diff.svg?branch=master
 [status]: https://travis-ci.org/thsutton/aeson-diff
+[docs]: https://hackage.haskell.org/package/aeson-diff/docs/Data-Aeson-Diff.html
