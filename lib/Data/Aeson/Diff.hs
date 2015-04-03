@@ -237,8 +237,8 @@ applyOperation op j = case op of
     delete :: Path -> Value -> Value -> Value
     -- Apply a local change.
     --
-    -- TODO We might want to check that the item addressed by the key is
-    -- similar to @_v'@.
+    -- TODO(thsutton) We might want to check that the item addressed by the key
+    -- is similar to @_v'@.
     delete [AKey i] _v' (Array  v) = Array  $ vDelete   i v
     delete [OKey n] _v' (Object m) = Object $ HM.delete n m
     -- Traverse for deeper changes.
