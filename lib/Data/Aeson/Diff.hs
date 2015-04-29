@@ -8,8 +8,7 @@
 -- and extract such a patch, and to apply such a patch to a JSON document.
 module Data.Aeson.Diff (
     -- * Patches
-    Patch,
-    patchOperations,
+    Patch(..),
     Path,
     Key(..),
     Operation(..),
@@ -83,12 +82,13 @@ instance FromJSON Operation where
             return v'
     parseJSON _ = fail "Operation must be a JSON object."
 
--- | Descripts an atomic change to a JSON document.
+-- | An 'Operation' describes an atomic change to a JSON document: inserting or
+-- deleting a single 'Value' at a specific point.
 data Operation
     = Ins { changePath :: Path, changeValue :: Value }
-    -- ^ Insert a value at a location.
+    -- ^ Insert a 'Value' at a location.
     | Del { changePath :: Path, changeValue :: Value }
-    -- ^ Delete the value at a location.
+    -- ^ Delete the 'Value' at a location.
   deriving (Eq, Show)
 
 -- | A path through a JSON document is a possibly empty sequence of 'Key's.
@@ -96,8 +96,8 @@ type Path = [Key]
 
 -- | Traverse a single layer of a JSON document.
 data Key
-    = OKey Text
-    | AKey Int
+    = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
+    | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
   deriving (Eq, Ord, Show)
 
 instance ToJSON Key where
@@ -127,6 +127,8 @@ del :: Path -> Value -> Patch
 del p v = Patch [Del p v]
 
 -- | Construct a patch which changes a single value.
+--
+-- This just deletes the old value and inserts the new one.
 ch :: Path -> Value -> Value -> Patch
 ch p v1 v2 = del p v1 <> ins p v2
 
@@ -251,10 +253,14 @@ applyOperation op j = case op of
 
 -- * Formatting patches
 
--- | Format a 'Patch'.
-formatPatch :: Patch -> Text
-formatPatch (Patch ops) = T.unlines
-    $ fmap formatOp ops
+-- | Format a 'Patch' for reading by humans.
+--
+-- For storing or exchanging 'Patch'es between systems using the JSON encoding
+-- implemented by the 'FromJSON' and 'ToJSON' instances.
+formatPatch
+    :: Patch
+    -> Text
+formatPatch (Patch ops) = T.unlines $ fmap formatOp ops
   where
     formatKey (OKey t) = "." <> t
     formatKey (AKey i) = "[" <> (T.pack . show $ i) <> "]"
