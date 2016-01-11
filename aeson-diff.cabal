@@ -45,7 +45,7 @@ executable             json-diff
                      , aeson
                      , aeson-diff
                      , bytestring
-                     , optparse-applicative >=0.11 && < 0.12
+                     , optparse-applicative >=0.11 && < 0.13
                      , text
 
 executable             json-patch
@@ -56,7 +56,7 @@ executable             json-patch
                      , aeson
                      , aeson-diff
                      , bytestring
-                     , optparse-applicative >=0.11 && < 0.12
+                     , optparse-applicative >=0.11 && < 0.13
 
 test-suite             properties
   default-language:    Haskell2010
