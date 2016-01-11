@@ -1,3 +1,16 @@
+
+# Include Haskell tools
+language: haskell
+ghc: 7.8
+
+# Use the docker infrastructure
+sudo: false
+
+# Cache the installed Haskell stuff
+cache:
+  directories:
+    - $HOME/.stack
+
 notifications:
   email:
     on_success: change
@@ -7,46 +20,36 @@ notifications:
 # test only against the last release in a major GHC version. Feel free to omit
 # lines listings versions you don't need/want testing for.
 env:
- - CABALVER=1.16 GHCVER=7.4.2
- - CABALVER=1.18 GHCVER=7.6.3
- - CABALVER=1.18 GHCVER=7.8.3
- - CABALVER=1.22 GHCVER=7.10.1
+  global:
+    - PKG_CONFIG_PATH=$HOME/.stack/local/lib/pkgconfig
+    - LD_LIBRARY_PATH=$HOME/.stack/local/lib
+    - LD_RUN_PATH=$HOME/.stack/local/lib
+    - CFLAGS=-I$HOME/.stack/local/include
+    - LDFLAGS=-L$HOME/.stack/local/lib
+  matrix:
+    - STACK_RESOLVER=lts-2
+    - STACK_RESOLVER=lts-3
+    - STACK_RESOLVER=lts-4
 
+# Download the latest stack command.
 before_install:
- # If $GHCVER is the one travis has, don't bother reinstalling it.
- # We can also have faster builds by installing some libraries with
- # `apt`. If it isn't, install the GHC we want from hvr's PPA along
- # with cabal-1.18.
- - |
-   if [ $GHCVER = `ghc --numeric-version` ]; then
-     travis/cabal-apt-install --enable-tests $MODE
-     export CABAL=cabal
-   else
-     travis_retry sudo add-apt-repository -y ppa:hvr/ghc
-     travis_retry sudo apt-get update
-     travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER
-     export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
-   fi
+  - travis_retry wget https://www.stackage.org/stack/linux-x86_64
+  - tar -xvf linux-x86_64
+  - mv stack-*-linux-x86_64/stack stack
 
 install:
- - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - travis_retry cabal update
- - cabal install --only-dependencies --enable-tests --enable-benchmarks
 
 # Here starts the actual work to be performed for the package under test; any
 # command which exits with a non-zero exit code causes the build to fail.
 script:
- - cabal configure --enable-tests --enable-benchmarks -v2
- - cabal build
- - cabal test
  - cabal check
  - cabal sdist
- - export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
-   cd dist/;
-   if [ -f "$SRC_TGZ" ]; then
-      cabal install --force-reinstalls "$SRC_TGZ";
-   else
-      echo "expected '$SRC_TGZ' not found";
-      exit 1;
-   fi
+ - export SRC=$(cabal info . | awk '{print $2;exit}')
+ - tar -xzf "dist/$SRC.tar.gz"
+ - cd "$SRC"
+ - travis_retry ../stack --resolver $STACK_RESOLVER setup
+ - travis_retry ../stack --resolver $STACK_RESOLVER install --only-snapshot -j4 --verbosity info
+ - ../stack --resolver $STACK_RESOLVER build
+ - ../stack --resolver $STACK_RESOLVER haddock --no-haddock-deps
+ - ../stack --resolver $STACK_RESOLVER test
