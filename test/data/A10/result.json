@@ -1,0 +1,6 @@
+{
+    "child": {
+        "grandchild": {}
+    },
+    "foo": "bar"
+}

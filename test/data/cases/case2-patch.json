@@ -1,0 +1,7 @@
+[
+    {"op":"replace","path":"/0/0","value":{}},
+    {"op":"remove","path":"/0/1"},
+    {"op":"replace","path":"/1","value":[]},
+    {"op":"add","path":"/2/hello","value":[0]},
+    {"op":"replace","path":"/2/wut","value":[false]}
+]

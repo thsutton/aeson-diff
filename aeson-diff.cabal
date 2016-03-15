@@ -1,5 +1,5 @@
 name:                aeson-diff
-version:             0.1.1.3
+version:             1.0.0.0
 synopsis:            Extract and apply patches to JSON documents.
 description:
   .
@@ -15,8 +15,13 @@ maintainer:          me@thomas-sutton.id.au
 copyright:           (c) 2015 Thomas Sutton and others.
 category:            JSON, Web, Algorithms
 build-type:          Simple
-extra-source-files:  README.md, CHANGELOG.md, stack.yaml
 cabal-version:       >=1.10
+extra-source-files:  README.md
+                   , CHANGELOG.md
+                   , stack.yaml
+                   , test/data/rfc6902/*.json
+                   , test/data/rfc6902/*.txt
+                   , test/data/cases/*.json
 
 source-repository     HEAD
   type: git
@@ -67,7 +72,34 @@ test-suite             properties
                      , QuickCheck
                      , aeson
                      , aeson-diff
+                     , bytestring
                      , quickcheck-instances
                      , text
                      , unordered-containers
                      , vector
+
+test-suite             examples
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             examples.hs
+  build-depends:       base
+                     , Glob
+                     , QuickCheck
+                     , aeson
+                     , aeson-diff
+                     , bytestring
+                     , directory
+                     , filepath
+                     , quickcheck-instances
+                     , text
+                     , unordered-containers
+                     , vector
+
+test-suite             hlint-check
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             hlint-check.hs
+  build-depends:       base
+                     , hlint

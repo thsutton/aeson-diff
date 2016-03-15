@@ -1,0 +1,7 @@
+[
+    {
+        "from": "/foo/waldo",
+        "op": "move",
+        "path": "/qux/thud"
+    }
+]

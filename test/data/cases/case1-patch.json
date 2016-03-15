@@ -1,0 +1,20 @@
+[
+   {
+      "path" : "/0/0",
+      "op" : "remove"
+   },
+   {
+      "path" : "/0/0",
+      "op" : "remove"
+   },
+   {
+      "value" : null,
+      "path" : "/0/0",
+      "op" : "add"
+   },
+   {
+      "path" : "/1",
+      "value" : true,
+      "op" : "add"
+   }
+]
