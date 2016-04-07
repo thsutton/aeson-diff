@@ -6,9 +6,11 @@
 
 module Main where
 
+import           Control.Applicative
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL
+import           Data.Functor
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
@@ -38,17 +40,21 @@ instance Show (AnObject Value) where
 instance Show (AnArray Value) where
     show = showIt . anArray
 
+-- | QuickCheck doesn't have scale in LTS-2 so copy it in.
+scaleSize :: (Int -> Int) -> Gen a -> Gen a
+scaleSize f g = sized (\s -> resize (f s) g)
+
 instance Arbitrary (Wellformed Value) where
     arbitrary = Wellformed <$> oneof
-                [ Array . V.fromList <$> scale (`div` 2) arbitrary
-                , Object . HM.fromList <$> scale (`div` 2) arbitrary
+                [ Array . V.fromList <$> scaleSize (`div` 2) arbitrary
+                , Object . HM.fromList <$> scaleSize (`div` 2) arbitrary
                 ]
 
 instance Arbitrary (AnObject Value) where
-    arbitrary = AnObject . Object . HM.fromList <$> scale (`div` 2) arbitrary
+    arbitrary = AnObject . Object . HM.fromList <$> scaleSize (`div` 2) arbitrary
 
 instance Arbitrary (AnArray Value) where
-    arbitrary = AnArray . Array . V.fromList <$> scale (`div` 2) arbitrary
+    arbitrary = AnArray . Array . V.fromList <$> scaleSize (`div` 2) arbitrary
 
 instance Arbitrary Value where
     arbitrary = sized vals
@@ -70,9 +76,9 @@ diffApply
     -> Bool
 diffApply f t =
     let p = diff f t
-    in (t == patch p f) ||
+    in (t == patch' p f) ||
        error ("BAD PATCH\n" <> BL.unpack (encode p) <> "\n"
-                            <> BL.unpack (encode (patch p f)))
+                            <> BL.unpack (encode (patch' p f)))
 
 -- | Patch extracted from identical documents should be mempty.
 prop_diff_id

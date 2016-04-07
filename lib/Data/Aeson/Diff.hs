@@ -28,7 +28,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Error.Class
 import           Data.Aeson
-import           Data.Aeson.Types           (typeMismatch)
+import           Data.Aeson.Types           (modifyFailure, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
 import           Data.Foldable              (foldlM)
@@ -62,8 +62,8 @@ instance ToJSON Patch where
     toJSON (Patch ops) = toJSON ops
 
 instance FromJSON Patch where
-    parseJSON (Array v) = Patch <$> mapM parseJSON (V.toList v)
-    parseJSON _ = fail "Patch must be a JSON object."
+    parseJSON (Array v) = modifyFailure ("Could not parse patch: " <>) (Patch <$> mapM parseJSON (V.toList v))
+    parseJSON v = modifyFailure ("Could not parse patch: " <> ) $ typeMismatch "Array" v
 
 type Path = [Key]
 
@@ -74,7 +74,7 @@ newtype Pointer = Pointer { pointerPath :: Path }
   deriving (Eq, Show, Monoid)
 
 pointerFailure :: Path -> Value -> Result a
-pointerFailure [] value = fail $ "UNPOSSIBLE!" <> show value
+pointerFailure [] value = Error ("UNPOSSIBLE!" <> show value)
 pointerFailure path@(key:rest) value =
     fail . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
   where
@@ -149,7 +149,7 @@ instance FromJSON Operation where
             if v' == val
               then return v'
               else mzero
-    parseJSON _ = fail "Operation must be a JSON object."
+    parseJSON v = typeMismatch "Operation" v
 
 operationCost :: Operation -> Int
 operationCost op =
@@ -343,19 +343,19 @@ diff = worker []
 -- | Apply a patch to a JSON document.
 --
 -- If the patch cannot be cleanly applied an 'error' is thrown.
-patch :: Patch -> Value -> Value
-patch p d =
-    case patch' p d of
+patch' :: Patch -> Value -> Value
+patch' p d =
+    case patch p d of
       Error e -> error $ "Failed to apply patch: " <> e <> "\n" <> BS.unpack (encode p)
       Success v -> v
 
 -- | Apply a patch to a JSON document.
-patch'
+patch
     :: Patch
     -> Value
     -> Result Value
-patch' (Patch []) val = return val
-patch' (Patch ops) val = foldlM (flip applyOperation) val ops
+patch (Patch []) val = return val
+patch (Patch ops) val = foldlM (flip applyOperation) val ops
 
 -- | Apply an 'Operation' to a 'Value'.
 applyOperation
@@ -389,14 +389,14 @@ applyAdd [AKey i] v' (Array v) =
     in return (Array $ vInsert i v' v)
 applyAdd (AKey i : path) v' (Array v) =
     let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail "Cannot insert beneath missing array index."
+        fn Nothing = Error "Cannot insert beneath missing array index."
         fn (Just d) = Just <$> applyAdd path v' d
     in Array <$> vModify i fn v
 applyAdd [OKey n] v' (Object m) =
     return . Object $ HM.insert n v' m
 applyAdd (OKey n : path) v' (Object o) =
     let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail "Cannot insert beneath missing object index."
+        fn Nothing = Error ("Cannot insert beneath missing object index: " <> show n)
         fn (Just d) = Just <$> applyAdd path v' d
     in Object <$> hmModify n fn o
 applyAdd (OKey n : path) v' array@(Array v)
@@ -472,7 +472,7 @@ applyCpy path from doc = do
 applyTst :: Path -> Value -> Value -> Result Value
 applyTst path v doc = do
     v' <- get path doc
-    unless (v == v') (fail "Tested elements do not match.")
+    unless (v == v') (Error "Tested elements do not match.")
     return doc
 
 -- | Get the value at a 'Path'.
@@ -585,6 +585,6 @@ hmModify
     -> HashMap k v
     -> Result (HashMap k v)
 hmModify k f m = case f (HM.lookup k m) of
-    Error e -> fail e
+    Error e -> Error e
     Success Nothing  -> return $ HM.delete k m
     Success (Just v) -> return $ HM.insert k v m

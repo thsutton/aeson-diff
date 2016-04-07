@@ -3,43 +3,36 @@
 
 module Main where
 
-import Control.Applicative
-import Control.Exception
-import Data.Aeson
-import Data.Aeson.Diff
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as BSL
-import Data.Monoid
-import qualified Data.Text.IO as T
-import Options.Applicative
-import Options.Applicative.Types
-import System.IO
+import           Control.Applicative
+import           Control.Exception
+import           Data.Aeson
+import           Data.Aeson.Diff
+import qualified Data.ByteString.Char8     as BS
+import qualified Data.ByteString.Lazy      as BSL
+import           Data.Monoid
+import qualified Data.Text.IO              as T
+import           Options.Applicative
+import           Options.Applicative.Types
+import           System.IO
 
 type File = Maybe FilePath
 
 -- | Command-line options.
 data Options = Options
-    { optionJSON :: Bool
-    , optionOut  :: File
+    { optionOut  :: File
     , optionFrom :: File
     , optionTo   :: File
     }
 
 data Configuration = Configuration
-    { cfgJSON :: Bool
-    , cfgOut  :: Handle
+    { cfgOut  :: Handle
     , cfgFrom :: Handle
     , cfgTo   :: Handle
     }
 
 optionParser :: Parser Options
 optionParser = Options
-    <$> switch
-        (  long "json"
-        <> short 'j'
-        <> help "Output patch in JSON."
-        )
-    <*> option fileP
+    <$> option fileP
         (  long "output"
         <> short 'o'
         <> metavar "OUTPUT"
@@ -61,7 +54,7 @@ optionParser = Options
 jsonFile :: Handle -> IO Value
 jsonFile fp = do
     s <- BS.hGetContents fp
-    case decode (BSL.fromStrict s)of
+    case decode (BSL.fromStrict s) of
         Nothing -> error "Could not parse as JSON"
         Just v -> return v
 
@@ -79,8 +72,7 @@ run opt = bracket (load opt) close process
     load :: Options -> IO Configuration
     load Options{..} =
         Configuration
-            <$> pure  optionJSON
-            <*> openw optionOut
+            <$> openw optionOut
             <*> openr optionFrom
             <*> openr optionTo
 
@@ -95,9 +87,7 @@ process Configuration{..} = do
     json_from <- jsonFile cfgFrom
     json_to <- jsonFile cfgTo
     let p = diff json_from json_to
-    if cfgJSON
-        then BS.hPutStrLn cfgOut . BSL.toStrict . encode $ p
-        else T.hPutStrLn cfgOut . formatPatch $ p
+    BS.hPutStrLn cfgOut $ BSL.toStrict (encode p)
 
 main :: IO ()
 main = execParser opts >>= run

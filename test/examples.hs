@@ -4,6 +4,7 @@
 
 module Main where
 
+import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
 import           Data.Aeson
@@ -13,6 +14,7 @@ import qualified Data.ByteString.Char8      as BC
 import qualified Data.ByteString.Lazy.Char8 as BL
 import           Data.Char
 import           Data.Either
+import           Data.Functor
 import           Data.List                  (nub)
 import           Data.Maybe
 import           Data.Monoid
@@ -80,13 +82,13 @@ runExample (doc, diff, res) =
         (Left err, Right _) ->
             failure ("Couldn't load patch: " <> err)
         (Right diff, Right res) ->
-            case patch' diff doc of
+            case patch diff doc of
               Success dest
                   | dest == res -> success "Result matches target"
                   | otherwise -> failure ("Result document did not match: " <> BL.unpack (encode dest))
               Error dest -> failure ("Couldn't apply patch " <> dest)
         (Right diff, Left err) ->
-            case patch' diff doc of
+            case patch diff doc of
               Success _ -> Just "Test Fails - Expected a failure but patch succeeded."
               Error msg
                   | msg /= err -> Just $ "Test Fails - Got: " <> msg <> "\nExpected: " <> err
