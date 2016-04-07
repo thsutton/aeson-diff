@@ -22,6 +22,7 @@ extra-source-files:  README.md
                    , test/data/rfc6902/*.json
                    , test/data/rfc6902/*.txt
                    , test/data/cases/*.json
+                   , test/data/cases/*.txt
 
 source-repository     HEAD
   type: git

@@ -61,7 +61,7 @@ readResult root name = do
       (Nothing, Just d)  -> return (Right d)
       (Just er, Nothing) -> return (Left er)
       (Just er, Just d)  -> derp "Expecting both error and success"
-      (Nothing, Nothing) -> derp "No result defined; add `error' or `result.json'"
+      (Nothing, Nothing) -> derp "No result defined; add `*-error.txt' or `*-result.json'"
   where
     handle :: IOException -> IO (Maybe a)
     handle e = return Nothing
