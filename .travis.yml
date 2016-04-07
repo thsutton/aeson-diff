@@ -29,7 +29,6 @@ env:
   matrix:
     - STACK_RESOLVER=lts-2
     - STACK_RESOLVER=lts-3
-    - STACK_RESOLVER=lts-4
     - STACK_RESOLVER=lts-5
 
 # Download the latest stack command.
