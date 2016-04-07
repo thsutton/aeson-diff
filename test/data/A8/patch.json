@@ -1,0 +1,12 @@
+[
+    {
+        "op": "test",
+        "path": "/baz",
+        "value": "qux"
+    },
+    {
+        "op": "test",
+        "path": "/foo/1",
+        "value": 2
+    }
+]

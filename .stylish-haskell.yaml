@@ -1,12 +1,4 @@
-# stylish-haskell configuration file
-# ==================================
-
-# The stylish-haskell tool is mainly configured by specifying steps. These steps
-# are a list, so they have an order, and one specific step may appear more than
-# once (if needed). Each file is processed by these steps in the given order.
 steps:
-  # Convert some ASCII sequences to their Unicode equivalents. This is disabled
-  # by default.
   # - unicode_syntax:
   #     # In order to make this work, we also need to insert the UnicodeSyntax
   #     # language pragma. If this flag is set to true, we insert it when it's
@@ -17,18 +9,7 @@ steps:
 
   # Import cleanup
   - imports:
-      # There are different ways we can align names and lists.
-      #
-      # - global: Align the import names and import list throughout the entire
-      #   file.
-      #
-      # - group: Only align the imports per group (a group is formed by adjacent
-      #   import lines).
-      #
-      # - none: Do not perform any alignment.
-      #
-      # Default: global.
-      align: none
+      align: group
 
   # Language pragmas
   - language_pragmas:

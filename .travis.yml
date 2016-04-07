@@ -29,7 +29,7 @@ env:
   matrix:
     - STACK_RESOLVER=lts-2
     - STACK_RESOLVER=lts-3
-    - STACK_RESOLVER=lts-4
+    - STACK_RESOLVER=lts-5
 
 # Download the latest stack command.
 before_install:
@@ -48,8 +48,8 @@ script:
  - export SRC=$(cabal info . | awk '{print $2;exit}')
  - tar -xzf "dist/$SRC.tar.gz"
  - cd "$SRC"
- - travis_retry ../stack --resolver $STACK_RESOLVER setup
- - travis_retry ../stack --resolver $STACK_RESOLVER install --only-snapshot -j4 --verbosity info
- - ../stack --resolver $STACK_RESOLVER build
- - ../stack --resolver $STACK_RESOLVER haddock --no-haddock-deps
- - ../stack --resolver $STACK_RESOLVER test
+ - travis_retry ../stack --no-terminal --resolver $STACK_RESOLVER setup
+ - travis_retry ../stack --no-terminal --resolver $STACK_RESOLVER install --only-snapshot -j4 --verbosity info
+ - ../stack --no-terminal --resolver $STACK_RESOLVER build
+ - ../stack --no-terminal --resolver $STACK_RESOLVER haddock --no-haddock-deps
+ - ../stack --no-terminal --resolver $STACK_RESOLVER test

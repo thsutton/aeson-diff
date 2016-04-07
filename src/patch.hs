@@ -2,42 +2,35 @@
 
 module Main where
 
-import Control.Applicative
-import Control.Exception
-import Data.Aeson
-import Data.Aeson.Diff
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as BSL
-import Data.Monoid
-import Options.Applicative hiding (Success)
-import Options.Applicative.Types hiding (Success)
-import System.IO
+import           Control.Applicative
+import           Control.Exception
+import           Data.Aeson
+import           Data.Aeson.Diff
+import qualified Data.ByteString.Char8     as BS
+import qualified Data.ByteString.Lazy      as BSL
+import           Data.Monoid
+import           Options.Applicative       hiding (Success)
+import           Options.Applicative.Types hiding (Success)
+import           System.IO
 
 type File = Maybe FilePath
 
 -- | Command-line options.
 data Options = Options
-    { optionJSON  :: Bool -- ^ Patch is JSON?
-    , optionOut   :: File -- ^ JSON destination
+    { optionOut   :: File -- ^ JSON destination
     , optionPatch :: File -- ^ Patch input
     , optionFrom  :: File -- ^ JSON source
     }
 
 data Configuration = Configuration
-    { cfgJSON  :: Bool
-    , cfgOut   :: Handle
+    { cfgOut   :: Handle
     , cfgPatch :: Handle
     , cfgFrom  :: Handle
     }
 
 optionParser :: Parser Options
 optionParser = Options
-    <$> switch
-        (  long "json"
-        <> short 'j'
-        <> help "Patch is in JSON format."
-        )
-    <*> option fileP
+    <$> option fileP
         (  long "output"
         <> short 'o'
         <> metavar "OUTPUT"
@@ -62,7 +55,7 @@ optionParser = Options
 jsonRead :: Handle -> IO Value
 jsonRead fp = do
     s <- BS.hGetContents fp
-    case decode (BSL.fromStrict s)of
+    case decode (BSL.fromStrict s) of
         Nothing -> error "Could not parse as JSON"
         Just v -> return v
 
@@ -80,8 +73,7 @@ run opt = bracket (load opt) close process
     load :: Options -> IO Configuration
     load Options{..} =
         Configuration
-            <$> pure  optionJSON
-            <*> openw optionOut
+            <$> openw optionOut
             <*> openr optionPatch
             <*> openr optionFrom
 
@@ -93,14 +85,11 @@ run opt = bracket (load opt) close process
 
 process :: Configuration -> IO ()
 process Configuration{..} = do
-    json_patch <- if cfgJSON
-        then jsonRead cfgPatch
-        else error "Patch must be in JSON format. Sorry :-("
+    json_patch <- jsonRead cfgPatch
     json_from <- jsonRead cfgFrom
-    case fromJSON json_patch of
+    case fromJSON json_patch >>= flip patch json_from of
         Error e -> error e
-        Success p -> BS.hPutStrLn cfgOut . BSL.toStrict . encode
-                $ patch p json_from
+        Success d -> BS.hPutStrLn cfgOut $ BSL.toStrict (encode d)
 
 main :: IO ()
 main = execParser opts >>= run

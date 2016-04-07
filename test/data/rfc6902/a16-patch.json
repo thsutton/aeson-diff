@@ -1,0 +1,10 @@
+[
+    {
+        "op": "add",
+        "path": "/foo/-",
+        "value": [
+            "abc",
+            "def"
+        ]
+    }
+]
