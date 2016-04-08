@@ -1,7 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- | Description: Extract and apply patches on JSON documents.
 --
@@ -18,10 +17,7 @@ module Data.Aeson.Diff (
     -- * Functions
     diff,
     patch,
-    patch',
     applyOperation,
-
-    formatPatch,
 ) where
 
 import           Control.Applicative
@@ -30,7 +26,6 @@ import           Control.Monad.Error.Class
 import           Data.Aeson
 import           Data.Aeson.Types           (modifyFailure, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
-import           Data.Char                  (isNumber)
 import           Data.Foldable              (foldlM)
 import           Data.Hashable
 import           Data.HashMap.Strict        (HashMap)
@@ -46,116 +41,15 @@ import qualified Data.Vector                as V
 
 import Data.Vector.Distance
 
--- | Describes the changes between two JSON documents.
-data Patch = Patch
-  { patchOperations :: [Operation] }
-  deriving (Eq)
+import Data.Aeson.Patch
+import Data.Aeson.Pointer
 
-instance Show Patch where
-    show = T.unpack . formatPatch
-
-instance Monoid Patch where
-    mempty = Patch []
-    mappend (Patch p1) (Patch p2) = Patch $ p1 <> p2
-
-instance ToJSON Patch where
-    toJSON (Patch ops) = toJSON ops
-
-instance FromJSON Patch where
-    parseJSON (Array v) = modifyFailure ("Could not parse patch: " <>) (Patch <$> mapM parseJSON (V.toList v))
-    parseJSON v = modifyFailure ("Could not parse patch: " <> ) $ typeMismatch "Array" v
-
-type Path = [Key]
-
--- | Pointer to a location in a JSON document.
---
--- Defined in RFC 6901 <http://tools.ietf.org/html/rfc6901>
-newtype Pointer = Pointer { pointerPath :: Path }
-  deriving (Eq, Show, Monoid)
-
-pointerFailure :: Path -> Value -> Result a
-pointerFailure [] value = Error ("UNPOSSIBLE!" <> show value)
-pointerFailure path@(key:rest) value =
-    fail . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
-  where
-    doc = encode value
-    pt = encode (Pointer path)
-    ty = case key of
-           (AKey _) -> "array"
-           (OKey _) -> "object"
-
--- | An 'Operation' describes an atomic change to a JSON document.
---
--- See RFC 6902 Section 4 <http://tools.ietf.org/html/rfc6902#section-4>.
-data Operation
-    = Add { changePointer :: Pointer, changeValue :: Value }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.1
-    | Rem { changePointer :: Pointer, changeValue :: Value }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.2
-    | Rep { changePointer :: Pointer, changeValue :: Value }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.3
-    | Mov { changePointer :: Pointer, fromPointer :: Pointer }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.4
-    | Cpy { changePointer :: Pointer, fromPointer :: Pointer }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.5
-    | Tst { changePointer :: Pointer, changeValue :: Value }
-    -- ^ http://tools.ietf.org/html/rfc6902#section-4.6
-  deriving (Eq, Show)
-
-instance ToJSON Operation where
-    toJSON (Add p v) = object
-        [ ("op", "add")
-        , "path"  .= p
-        , "value" .= v
-        ]
-    toJSON (Rem p v) = object
-        [ ("op", "remove")
-        , "path" .= p
-        ]
-    toJSON (Rep p v) = object
-        [ ("op", "replace")
-        , "path"  .= p
-        , "value" .= v
-        ]
-    toJSON (Mov p f) = object
-        [ ("op", "move")
-        , "path" .= p
-        , "from" .= f
-        ]
-    toJSON (Cpy p f) = object
-        [ ("op", "copy")
-        , "path" .= p
-        , "from" .= f
-        ]
-    toJSON (Tst p v) = object
-        [ ("op", "test")
-        , "path" .= p
-        , "value" .= v
-        ]
-
-instance FromJSON Operation where
-    parseJSON o@(Object v)
-        =   (op "add"     *> (Add <$> v .: "path" <*> v .: "value"))
-        <|> (op "replace" *> (Rep <$> v .: "path" <*> v .: "value"))
-        <|> (op "move"    *> (Mov <$> v .: "path" <*> v .: "from"))
-        <|> (op "copy"    *> (Cpy <$> v .: "path" <*> v .: "from"))
-        <|> (op "test"    *> (Tst <$> v .: "path" <*> v .: "value"))
-        <|> (op "remove"  *> (Rem <$> v .: "path" <*> pure Null))
-        <|> fail ("Expected a JSON patch operation, encountered: " <> BS.unpack (encode o))
-      where
-        op n = fixed v "op" (String n)
-        fixed o n val = do
-            v' <- o .: n
-            if v' == val
-              then return v'
-              else mzero
-    parseJSON v = typeMismatch "Operation" v
 
 operationCost :: Operation -> Int
 operationCost op =
     case op of
       Add{} -> valueSize (changeValue op)
-      Rem{} -> valueSize (changeValue op)
+      Rem{} -> 1
       Rep{} -> valueSize (changeValue op)
       Mov{} -> 1
       Cpy{} -> 1
@@ -176,51 +70,6 @@ modifyPath f op = from (change op)
           Cpy{} -> op { fromPointer = fn (fromPointer op) }
           _     -> op
 
--- | Traverse a single layer of a JSON document.
-data Key
-    = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
-    | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
-  deriving (Eq, Ord, Show)
-
-instance ToJSON Pointer where
-    toJSON (Pointer path) = String ("/" <> T.intercalate "/" (fmap fmt path))
-        where
-          esc :: Char -> Text
-          esc '~' = "~0"
-          esc '/' = "~1"
-          esc c = T.singleton c
-          fmt :: Key -> Text
-          fmt (OKey t) = T.concatMap esc t
-          fmt (AKey i) = T.pack (show i)
-
-instance FromJSON Pointer where
-    parseJSON (String t) = Pointer <$> mapM key (drop 1 $ T.splitOn "/" t)
-        where
-          step t
-              | "0" `T.isPrefixOf` t = T.cons '~' (T.tail t)
-              | "1" `T.isPrefixOf` t = T.cons '/' (T.tail t)
-              | otherwise = T.cons '~' t
-          unesc :: Text -> Text
-          unesc t =
-              let l = T.split (== '~') t
-              in T.concat $ take 1 l <> fmap step (tail l)
-          key t
-              | T.null t         = fail "JSON components must not be empty."
-              | T.all isNumber t = return (AKey (read $ T.unpack t))
-              | otherwise        = return $ OKey (unesc t)
-    parseJSON _ = fail "A JSON pointer must be a string."
-
-instance ToJSON Key where
-    toJSON (OKey t) = String t
-    toJSON (AKey a) = Number . fromInteger . toInteger $ a
-
-instance FromJSON Key where
-    parseJSON (String t) = return $ OKey t
-    parseJSON (Number n) =
-        case toBoundedInteger n of
-            Nothing -> fail "A numeric key must be a positive whole number."
-            Just n' -> return $ AKey n'
-    parseJSON _ = fail "A key element must be a number or a string."
 
 -- * Atomic patches
 
@@ -230,7 +79,7 @@ ins p v = Patch [Add (Pointer p) v]
 
 -- | Construct a patch with a single 'Rem' operation.
 del :: Path -> Value -> Patch
-del p v = Patch [Rem (Pointer p) v]
+del p v = Patch [Rem (Pointer p)]
 
 -- | Construct a patch which changes 'Rep' operation.
 rep :: Path -> Value -> Patch
@@ -271,7 +120,7 @@ diff = worker []
             -- Deletions
             del_keys = filter (not . (`elem` k2)) k1
             deletions = Patch $ fmap
-                (\k -> Rem (Pointer [OKey k]) . fromJust $ HM.lookup k o1)
+                (\k -> Rem (Pointer [OKey k]))
                 del_keys
             -- Insertions
             ins_keys = filter (not . (`elem` k1)) k2
@@ -295,7 +144,7 @@ diff = worker []
         params :: Params Value [Operation] (Sum Int)
         params = Params{..}
         equivalent = (==)
-        delete i v = [Rem (Pointer [AKey i]) v]
+        delete i v = [Rem (Pointer [AKey i])]
         insert i v = [Add (Pointer [AKey i]) v]
         substitute i v v' =
             let p = [AKey i]
@@ -341,15 +190,6 @@ diff = worker []
         pos Tst{changePointer=Pointer path} = 0
 
 -- | Apply a patch to a JSON document.
---
--- If the patch cannot be cleanly applied an 'error' is thrown.
-patch' :: Patch -> Value -> Value
-patch' p d =
-    case patch p d of
-      Error e -> error $ "Failed to apply patch: " <> e <> "\n" <> BS.unpack (encode p)
-      Success v -> v
-
--- | Apply a patch to a JSON document.
 patch
     :: Patch
     -> Value
@@ -364,7 +204,7 @@ applyOperation
     -> Result Value
 applyOperation op j = case op of
     Add (Pointer path) v' -> applyAdd path v' j
-    Rem (Pointer path) _  -> applyRem path    j
+    Rem (Pointer path)    -> applyRem path    j
     Rep (Pointer path) v' -> applyRep path v' j
     Mov (Pointer path) (Pointer from) -> do
         v' <- get from j
@@ -485,40 +325,6 @@ get (AKey i : path) (Array v) =
 get (OKey n : path) (Object v) =
     maybe (fail "") return (HM.lookup n v) >>= get path
 get path value = pointerFailure path value
-
--- * Formatting patches
-
--- | Format a 'Patch' for reading by humans.
---
--- For storing or exchanging 'Patch'es between systems using the JSON encoding
--- implemented by the 'FromJSON' and 'ToJSON' instances.
-formatPatch
-    :: Patch
-    -> Text
-formatPatch (Patch ops) = T.unlines $ fmap formatOp ops
-  where
-    formatKey (OKey t) = "." <> t
-    formatKey (AKey i) = "[" <> (T.pack . show $ i) <> "]"
-    formatPath :: [Key] -> Text
-    formatPath p = "@" <> (T.concat . fmap formatKey $ p)
-    formatOp :: Operation -> Text
-    formatValue :: Value -> Text
-    formatValue v = case v of
-        String t -> t
-        Number s -> T.pack . show $ s
-        Bool b -> T.pack . show $ b
-        Null -> "Null"
-        _ -> ":-("
-    formatOp (Add (Pointer k) v) = formatPath k <> "\n" <> "+" <> formatValue v
-    formatOp (Rem (Pointer k) _) = formatPath k <> "\n" <> "-"
-    formatOp (Rep (Pointer k) v) = formatPath k <> "\n" <> "=" <> formatValue v
-    formatOp (Mov (Pointer k) (Pointer f)) = formatPath k <> "\n" <> "<" <> formatPath f
-    formatOp (Cpy (Pointer k) (Pointer f)) = formatPath k <> "\n" <> "~" <> formatPath f
-    formatOp (Tst (Pointer k) v) = formatPath k <> "\n" <> "?" <> formatValue v
-
--- | Parse a 'Patch'.
-parsePatch :: Text -> Either Text Patch
-parsePatch _t = throwError "Cannot parse"
 
 -- * Utilities
 --

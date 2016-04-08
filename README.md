@@ -81,9 +81,6 @@ exports `diff` and `patch` functions which do exactly what might be expected:
 - `diff :: Value -> Value -> Patch` examines source and target JSON `Value`s
 and constructs a new `Patch` describing the changes.
 
-- `patch' :: Patch -> Value -> Result Value` applies the changes in a
-`Path` to a JSON `Value`.
-
 - `patch :: Patch -> Value -> Value` applies the changes in a `Patch` to a JSON
 `Value`. If an error results then an exception is thrown.
 

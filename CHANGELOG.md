@@ -1,11 +1,20 @@
+aeson-diff 1.0.0.1
+
+    * Remove the `patch'` function before anyone gets attached to it.
+
+    * Remove the 'Value' which was carried by the 'Rem' operation constructor.
+
+    * Move 'Pointer' and 'Patch' types and operations into separate modules.
+
 aeson-diff 1.0
 
     * aeson-diff now supports the operations and patch format described in
-      RFC6902.
+      RFC 6902.
 
-    * Patch application can fail. The patch function now returns in the
-      'Result' monad from the aeson package. The new patch' function throws an
-      exception instead.
+    * The `patch` function now returns in the 'Result' monad from the aeson
+      package.
+
+    * Add a `patch'` function throws an exception instead.
 
     * The command line applications no longer pretend to support a non-JSON
       patch format.
