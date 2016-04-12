@@ -8,7 +8,7 @@ module Main where
 
 import           Control.Applicative
 import           Control.Monad
-import           Data.Aeson
+import           Data.Aeson                 as A
 import qualified Data.ByteString.Lazy.Char8 as BL
 import           Data.Functor
 import           Data.HashMap.Strict        (HashMap)
@@ -76,9 +76,13 @@ diffApply
     -> Bool
 diffApply f t =
     let p = diff f t
-    in (t == patch' p f) ||
+    in (A.Success t == patch p f) ||
        error ("BAD PATCH\n" <> BL.unpack (encode p) <> "\n"
-                            <> BL.unpack (encode (patch' p f)))
+                            <> result "<failure>" (BL.unpack . encode <$> patch p f))
+
+result :: a -> A.Result a -> a
+result _ (A.Success a) = a
+result a _ = a
 
 -- | Patch extracted from identical documents should be mempty.
 prop_diff_id
