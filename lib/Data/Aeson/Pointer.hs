@@ -7,6 +7,7 @@ module Data.Aeson.Pointer (
   Key(..),
   pointerFailure,
   Path,
+  get,
 ) where
 
 import           Control.Applicative
@@ -14,10 +15,12 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
+import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Scientific
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Vector                as V
 
 -- * Patch components
 
@@ -41,6 +44,7 @@ instance FromJSON Key where
 
 -- * Pointers
 
+-- | A sequence of 'Key's forms a path through a JSON document.
 type Path = [Key]
 
 -- | Pointer to a location in a JSON document.
@@ -88,3 +92,14 @@ instance FromJSON Pointer where
             | T.null t         = fail "JSON components must not be empty."
             | T.all isNumber t = return (AKey (read $ T.unpack t))
             | otherwise        = return $ OKey (unesc t)
+
+-- | Get the value at a 'Path'.
+get :: Pointer -> Value -> Result Value
+get (Pointer p) = get' p
+  where
+    get' [] v = return v
+    get' (AKey i : path) (Array v) =
+        maybe (fail "") return (v V.!? i) >>= get' path
+    get' (OKey n : path) (Object v) =
+        maybe (fail "") return (HM.lookup n v) >>= get' path
+    get' path value = pointerFailure path value
