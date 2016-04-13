@@ -202,15 +202,15 @@ applyOperation
     :: Operation
     -> Value
     -> Result Value
-applyOperation op j = case op of
-    Add (Pointer path) v' -> applyAdd path v' j
-    Rem (Pointer path)    -> applyRem path    j
-    Rep (Pointer path) v' -> applyRep path v' j
-    Mov (Pointer path) (Pointer from) -> do
-        v' <- get from j
-        applyRem from j >>= applyAdd path v'
-    Cpy (Pointer path) (Pointer from) -> applyCpy path from j
-    Tst (Pointer path) v  -> applyTst path v j
+applyOperation op json = case op of
+    Add path v'   -> applyAdd path v' json
+    Rem path      -> applyRem path    json
+    Rep path v'   -> applyRep path v' json
+    Tst path v    -> applyTst path v  json
+    Cpy path from -> applyCpy path from json
+    Mov path from -> do
+        v' <- get from json
+        applyRem from json >>= applyAdd path v'
 
 -- | Apply an 'Add' operation to a document.
 --
@@ -220,74 +220,78 @@ applyOperation op j = case op of
 -- - A single 'OKey' inserts or replaces the corresponding member in an object.
 -- - A single 'AKey' inserts at the corresponding location.
 -- - Longer 'Paths' traverse if they can and fail otherwise.
-applyAdd :: Path -> Value -> Value -> Result Value
-applyAdd [] val _ =
-    return val
-applyAdd [AKey i] v' (Array v) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn _ = return (Just v')
-    in return (Array $ vInsert i v' v)
-applyAdd (AKey i : path) v' (Array v) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = Error "Cannot insert beneath missing array index."
-        fn (Just d) = Just <$> applyAdd path v' d
-    in Array <$> vModify i fn v
-applyAdd [OKey n] v' (Object m) =
-    return . Object $ HM.insert n v' m
-applyAdd (OKey n : path) v' (Object o) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = Error ("Cannot insert beneath missing object index: " <> show n)
-        fn (Just d) = Just <$> applyAdd path v' d
-    in Object <$> hmModify n fn o
-applyAdd (OKey n : path) v' array@(Array v)
-    | n == "-" = applyAdd (AKey (V.length v) : path) v' array
-applyAdd path _ v = pointerFailure path v
+applyAdd :: Pointer -> Value -> Value -> Result Value
+applyAdd from@(Pointer path) = go path
+  where
+    go [] val _ =
+        return val
+    go [AKey i] v' (Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn _ = return (Just v')
+        in return (Array $ vInsert i v' v)
+    go (AKey i : path) v' (Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "insert" "array" i from
+            fn (Just d) = Just <$> go path v' d
+        in Array <$> vModify i fn v
+    go [OKey n] v' (Object m) =
+        return . Object $ HM.insert n v' m
+    go (OKey n : path) v' (Object o) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "insert" "object" n from
+            fn (Just d) = Just <$> go path v' d
+        in Object <$> hmModify n fn o
+    go (OKey n : path) v' array@(Array v)
+        | n == "-" = go (AKey (V.length v) : path) v' array
+    go path _ v = pointerFailure path v
 
 -- | Apply a 'Rem' operation to a document.
 --
 -- http://tools.ietf.org/html/rfc6902#section-4.2
 --
 -- - The target location MUST exist.
-applyRem :: Path -> Value -> Result Value
-applyRem [] _ = return Null
-applyRem [AKey i] d@(Array v) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail $ "Cannot delete missing array member at " <> show i <> " " <> BS.unpack (encode d)
-        fn (Just v) = return Nothing
-    in Array <$> vModify i fn v
-applyRem (AKey i : path) (Array v) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail "Cannot traverse under missing array index."
-        fn (Just o) = Just <$> applyRem path o
-    in Array <$> vModify i fn v
-applyRem [OKey n] (Object m) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail "Cannot delete missing object member."
-        fn (Just _) = return Nothing
-    in Object <$> hmModify n fn m
-applyRem (OKey n : path) (Object m) =
-    let fn :: Maybe Value -> Result (Maybe Value)
-        fn Nothing = fail "Cannot traverse under missing object index."
-        fn (Just o) = Just <$> applyRem path o
-    in Object <$> hmModify n fn m
--- Dodgy hack for "-" key which means "the end of the array".
-applyRem (OKey n : path) array@(Array v)
-    | n == "-" = applyRem (AKey (V.length v) : path) array
--- Type mismatch: clearly the thing we're deleting isn't here.
-applyRem path value = pointerFailure path value
+applyRem :: Pointer -> Value -> Result Value
+applyRem from@(Pointer path) = go path
+  where
+    go [] _ = return Null
+    go [AKey i] d@(Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "delete" "array" i from
+            fn (Just v) = return Nothing
+        in Array <$> vModify i fn v
+    go (AKey i : path) (Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "traverse" "array" i from
+            fn (Just o) = Just <$> go path o
+        in Array <$> vModify i fn v
+    go [OKey n] (Object m) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "delete" "object" n from
+            fn (Just _) = return Nothing
+        in Object <$> hmModify n fn m
+    go (OKey n : path) (Object m) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing = cannot "traverse" "object" n from
+            fn (Just o) = Just <$> go path o
+        in Object <$> hmModify n fn m
+    -- Dodgy hack for "-" key which means "the end of the array".
+    go (OKey n : path) array@(Array v)
+        | n == "-" = go (AKey (V.length v) : path) array
+    -- Type mismatch: clearly the thing we're deleting isn't here.
+    go path value = pointerFailure path value
 
 -- | Apply a 'Rep' operation to a document.
 --
 -- http://tools.ietf.org/html/rfc6902#section-4.3
 --
 -- - Functionally identical to a 'Rem' followed by an 'Add'.
-applyRep :: Path -> Value -> Value -> Result Value
-applyRep path v doc = applyRem path doc >>= applyAdd path v
+applyRep :: Pointer -> Value -> Value -> Result Value
+applyRep from v doc = applyRem from doc >>= applyAdd from v
 
 -- | Apply a 'Mov' operation to a document.
 --
 -- http://tools.ietf.org/html/rfc6902#section-4.4
-applyMov :: Path -> Path -> Value -> Result Value
+applyMov :: Pointer -> Pointer -> Value -> Result Value
 applyMov path from doc = do
   v <- get from doc
   applyRem from doc >>= applyAdd path v
@@ -298,7 +302,7 @@ applyMov path from doc = do
 --
 -- - The location must exist.
 -- - Identical to an add with the appropriate value.
-applyCpy :: Path -> Path -> Value -> Result Value
+applyCpy :: Pointer -> Pointer -> Value -> Result Value
 applyCpy path from doc = do
   v <- get from doc
   applyAdd path v doc
@@ -309,28 +313,17 @@ applyCpy path from doc = do
 --
 -- - The location must exist.
 -- - The value must be equal to the supplied value.
-applyTst :: Path -> Value -> Value -> Result Value
+applyTst :: Pointer -> Value -> Value -> Result Value
 applyTst path v doc = do
     v' <- get path doc
-    unless (v == v') (Error "Tested elements do not match.")
+    unless (v == v') (Error . T.unpack $ "Element at \"" <> formatPointer path <> "\" fails test.")
     return doc
 
--- | Get the value at a 'Path'.
---
--- - The path must exist.
-get :: Path -> Value -> Result Value
-get [] v = return v
-get (AKey i : path) (Array v) =
-    maybe (fail "") return (v V.!? i) >>= get path
-get (OKey n : path) (Object v) =
-    maybe (fail "") return (HM.lookup n v) >>= get path
-get path value = pointerFailure path value
-
 -- * Utilities
---
--- $ These are some utility functions used in the functions defined above. Mostly
--- they just fill gaps in the APIs of the "Data.Vector" and "Data.HashMap.Strict"
--- modules.
+
+-- $ These are some utility functions used in the functions defined
+-- above. Mostly they just fill gaps in the APIs of the "Data.Vector"
+-- and "Data.HashMap.Strict" modules.
 
 -- | Estimate the size of a JSON 'Value'.
 --
@@ -368,7 +361,11 @@ vInsert i a v
 -- - delete an existing element;
 -- - insert a new element; or
 -- - replace an existing element.
-vModify :: Int -> (Maybe a -> Result (Maybe a)) -> Vector a -> Result (Vector a)
+vModify
+    :: Int
+    -> (Maybe a -> Result (Maybe a))
+    -> Vector a
+    -> Result (Vector a)
 vModify i f v =
     let a = v V.!? i
         a' = f a
@@ -377,7 +374,7 @@ vModify i f v =
         (Just _ , Success Nothing ) -> return (vDelete i v)
         (Nothing, Success (Just n)) -> return (vInsert i n v)
         (Just _ , Success (Just n)) -> return (V.update v (V.singleton (i, n)))
-        (_      , Error   e       ) -> fail e
+        (_      , Error   e       ) -> Error e
 
 -- | Modify the value associated with a key in a 'HashMap'.
 --
@@ -394,3 +391,15 @@ hmModify k f m = case f (HM.lookup k m) of
     Error e -> Error e
     Success Nothing  -> return $ HM.delete k m
     Success (Just v) -> return $ HM.insert k v m
+
+-- | Report an error about being able to use a pointer key.
+cannot
+    :: (Show ix)
+    => String -- ^ Use to be made "delete", "traverse", etc.
+    -> String -- ^ Type "array" "object"
+    -> ix
+    -> Pointer
+    -> Result a
+cannot op ty ix p =
+    Error ("Cannot " <> op <> " missing " <> ty <> " member at index "
+          <> show ix <> " in pointer \"" <> T.unpack (formatPointer p) <> "\".")

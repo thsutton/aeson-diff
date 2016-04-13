@@ -1,9 +1,0 @@
-[
-    {
-        "op": "add",
-        "path": "/child",
-        "value": {
-            "grandchild": {}
-        }
-    }
-]

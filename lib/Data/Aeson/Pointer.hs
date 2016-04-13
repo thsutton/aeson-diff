@@ -7,6 +7,8 @@ module Data.Aeson.Pointer (
   Key(..),
   pointerFailure,
   Path,
+  formatPointer,
+  get,
 ) where
 
 import           Control.Applicative
@@ -14,10 +16,12 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
+import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Scientific
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Vector                as V
 
 -- * Patch components
 
@@ -39,8 +43,18 @@ instance FromJSON Key where
             Just n' -> return $ AKey n'
     parseJSON _ = fail "A key element must be a number or a string."
 
+formatKey :: Key -> Text
+formatKey (AKey i) = T.pack (show i)
+formatKey (OKey t) = T.concatMap esc t
+  where
+    esc :: Char -> Text
+    esc '~' = "~0"
+    esc '/' = "~1"
+    esc c = T.singleton c
+
 -- * Pointers
 
+-- | A sequence of 'Key's forms a path through a JSON document.
 type Path = [Key]
 
 -- | Pointer to a location in a JSON document.
@@ -49,6 +63,11 @@ type Path = [Key]
 newtype Pointer = Pointer { pointerPath :: Path }
   deriving (Eq, Show, Monoid)
 
+-- | Format a 'Pointer' as described in RFC 6901.
+formatPointer :: Pointer -> Text
+formatPointer (Pointer path) = "/" <> T.intercalate "/" (formatKey <$> path)
+
+-- | Report an error following a pointer.
 pointerFailure :: Path -> Value -> Result a
 pointerFailure [] value = Error ("UNPOSSIBLE!" <> show value)
 pointerFailure path@(key:rest) value =
@@ -61,15 +80,8 @@ pointerFailure path@(key:rest) value =
            (OKey _) -> "object"
 
 instance ToJSON Pointer where
-    toJSON (Pointer path) = String ("/" <> T.intercalate "/" (fmap fmt path))
-        where
-          esc :: Char -> Text
-          esc '~' = "~0"
-          esc '/' = "~1"
-          esc c = T.singleton c
-          fmt :: Key -> Text
-          fmt (OKey t) = T.concatMap esc t
-          fmt (AKey i) = T.pack (show i)
+    toJSON pointer =
+        String (formatPointer pointer)
 
 instance FromJSON Pointer where
     parseJSON = modifyFailure ("Could not parse JSON pointer: " <>) . parse
@@ -88,3 +100,14 @@ instance FromJSON Pointer where
             | T.null t         = fail "JSON components must not be empty."
             | T.all isNumber t = return (AKey (read $ T.unpack t))
             | otherwise        = return $ OKey (unesc t)
+
+-- | Get the value at a 'Path'.
+get :: Pointer -> Value -> Result Value
+get (Pointer p) = get' p
+  where
+    get' [] v = return v
+    get' (AKey i : path) (Array v) =
+        maybe (fail "") return (v V.!? i) >>= get' path
+    get' (OKey n : path) (Object v) =
+        maybe (fail "") return (HM.lookup n v) >>= get' path
+    get' path value = pointerFailure path value
