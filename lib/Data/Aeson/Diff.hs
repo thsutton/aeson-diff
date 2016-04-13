@@ -221,7 +221,7 @@ applyOperation op json = case op of
 -- - A single 'AKey' inserts at the corresponding location.
 -- - Longer 'Paths' traverse if they can and fail otherwise.
 applyAdd :: Pointer -> Value -> Value -> Result Value
-applyAdd (Pointer path) = go path
+applyAdd from@(Pointer path) = go path
   where
     go [] val _ =
         return val
@@ -231,14 +231,14 @@ applyAdd (Pointer path) = go path
         in return (Array $ vInsert i v' v)
     go (AKey i : path) v' (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = Error "Cannot insert beneath missing array index."
+            fn Nothing = cannot "insert" "array" i from
             fn (Just d) = Just <$> go path v' d
         in Array <$> vModify i fn v
     go [OKey n] v' (Object m) =
         return . Object $ HM.insert n v' m
     go (OKey n : path) v' (Object o) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = Error ("Cannot insert beneath missing object index: " <> show n)
+            fn Nothing = cannot "insert" "object" n from
             fn (Just d) = Just <$> go path v' d
         in Object <$> hmModify n fn o
     go (OKey n : path) v' array@(Array v)
@@ -251,27 +251,27 @@ applyAdd (Pointer path) = go path
 --
 -- - The target location MUST exist.
 applyRem :: Pointer -> Value -> Result Value
-applyRem (Pointer path) = go path
+applyRem from@(Pointer path) = go path
   where
     go [] _ = return Null
     go [AKey i] d@(Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = fail $ "Cannot delete missing array member at " <> show i <> " " <> BS.unpack (encode d)
+            fn Nothing = cannot "delete" "array" i from
             fn (Just v) = return Nothing
         in Array <$> vModify i fn v
     go (AKey i : path) (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = fail "Cannot traverse under missing array index."
+            fn Nothing = cannot "traverse" "array" i from
             fn (Just o) = Just <$> go path o
         in Array <$> vModify i fn v
     go [OKey n] (Object m) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = fail "Cannot delete missing object member."
+            fn Nothing = cannot "delete" "object" n from
             fn (Just _) = return Nothing
         in Object <$> hmModify n fn m
     go (OKey n : path) (Object m) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = fail "Cannot traverse under missing object index."
+            fn Nothing = cannot "traverse" "object" n from
             fn (Just o) = Just <$> go path o
         in Object <$> hmModify n fn m
     -- Dodgy hack for "-" key which means "the end of the array".
@@ -316,14 +316,14 @@ applyCpy path from doc = do
 applyTst :: Pointer -> Value -> Value -> Result Value
 applyTst path v doc = do
     v' <- get path doc
-    unless (v == v') (Error "Tested elements do not match.")
+    unless (v == v') Error (T.unpack $ "Element at " <> formatPointer path <> "does not match.")
     return doc
 
 -- * Utilities
---
--- $ These are some utility functions used in the functions defined above. Mostly
--- they just fill gaps in the APIs of the "Data.Vector" and "Data.HashMap.Strict"
--- modules.
+
+-- $ These are some utility functions used in the functions defined
+-- above. Mostly they just fill gaps in the APIs of the "Data.Vector"
+-- and "Data.HashMap.Strict" modules.
 
 -- | Estimate the size of a JSON 'Value'.
 --
@@ -361,7 +361,11 @@ vInsert i a v
 -- - delete an existing element;
 -- - insert a new element; or
 -- - replace an existing element.
-vModify :: Int -> (Maybe a -> Result (Maybe a)) -> Vector a -> Result (Vector a)
+vModify
+    :: Int
+    -> (Maybe a -> Result (Maybe a))
+    -> Vector a
+    -> Result (Vector a)
 vModify i f v =
     let a = v V.!? i
         a' = f a
@@ -370,7 +374,7 @@ vModify i f v =
         (Just _ , Success Nothing ) -> return (vDelete i v)
         (Nothing, Success (Just n)) -> return (vInsert i n v)
         (Just _ , Success (Just n)) -> return (V.update v (V.singleton (i, n)))
-        (_      , Error   e       ) -> fail e
+        (_      , Error   e       ) -> Error e
 
 -- | Modify the value associated with a key in a 'HashMap'.
 --
@@ -387,3 +391,15 @@ hmModify k f m = case f (HM.lookup k m) of
     Error e -> Error e
     Success Nothing  -> return $ HM.delete k m
     Success (Just v) -> return $ HM.insert k v m
+
+-- | Report an error about being able to use a pointer key.
+cannot
+    :: (Show ix)
+    => String -- ^ Use to be made "delete", "traverse", etc.
+    -> String -- ^ Type "array" "object"
+    -> ix
+    -> Pointer
+    -> Result a
+cannot op ty ix p =
+    Error ("Cannot " <> op <> " missing " <> ty <> " member at index "
+          <> show ix <> " in pointer \"" <> T.unpack (formatPointer p) <> "\".")

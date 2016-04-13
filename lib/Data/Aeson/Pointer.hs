@@ -7,6 +7,7 @@ module Data.Aeson.Pointer (
   Key(..),
   pointerFailure,
   Path,
+  formatPointer,
   get,
 ) where
 
@@ -42,6 +43,15 @@ instance FromJSON Key where
             Just n' -> return $ AKey n'
     parseJSON _ = fail "A key element must be a number or a string."
 
+formatKey :: Key -> Text
+formatKey (AKey i) = T.pack (show i)
+formatKey (OKey t) = T.concatMap esc t
+  where
+    esc :: Char -> Text
+    esc '~' = "~0"
+    esc '/' = "~1"
+    esc c = T.singleton c
+
 -- * Pointers
 
 -- | A sequence of 'Key's forms a path through a JSON document.
@@ -53,6 +63,11 @@ type Path = [Key]
 newtype Pointer = Pointer { pointerPath :: Path }
   deriving (Eq, Show, Monoid)
 
+-- | Format a 'Pointer' as described in RFC 6901.
+formatPointer :: Pointer -> Text
+formatPointer (Pointer path) = "/" <> T.intercalate "/" (formatKey <$> path)
+
+-- | Report an error following a pointer.
 pointerFailure :: Path -> Value -> Result a
 pointerFailure [] value = Error ("UNPOSSIBLE!" <> show value)
 pointerFailure path@(key:rest) value =
@@ -65,15 +80,8 @@ pointerFailure path@(key:rest) value =
            (OKey _) -> "object"
 
 instance ToJSON Pointer where
-    toJSON (Pointer path) = String ("/" <> T.intercalate "/" (fmap fmt path))
-        where
-          esc :: Char -> Text
-          esc '~' = "~0"
-          esc '/' = "~1"
-          esc c = T.singleton c
-          fmt :: Key -> Text
-          fmt (OKey t) = T.concatMap esc t
-          fmt (AKey i) = T.pack (show i)
+    toJSON pointer =
+        String (formatPointer pointer)
 
 instance FromJSON Pointer where
     parseJSON = modifyFailure ("Could not parse JSON pointer: " <>) . parse
