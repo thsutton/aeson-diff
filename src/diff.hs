@@ -19,20 +19,27 @@ type File = Maybe FilePath
 
 -- | Command-line options.
 data Options = Options
-    { optionOut  :: File
+    { optionTst  :: Bool
+    , optionOut  :: File
     , optionFrom :: File
     , optionTo   :: File
     }
 
 data Configuration = Configuration
-    { cfgOut  :: Handle
+    { cfgTst  :: Bool
+    , cfgOut  :: Handle
     , cfgFrom :: Handle
     , cfgTo   :: Handle
     }
 
 optionParser :: Parser Options
 optionParser = Options
-    <$> option fileP
+    <$> switch
+        (  long "test-before-remove"
+        <> short 'T'
+        <> help "Include a test before each remove."
+        )
+    <*> option fileP
         (  long "output"
         <> short 'o'
         <> metavar "OUTPUT"
@@ -72,7 +79,8 @@ run opt = bracket (load opt) close process
     load :: Options -> IO Configuration
     load Options{..} =
         Configuration
-            <$> openw optionOut
+            <$> pure  optionTst
+            <*> openw optionOut
             <*> openr optionFrom
             <*> openr optionTo
 
