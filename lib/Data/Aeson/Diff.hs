@@ -316,7 +316,7 @@ applyCpy path from doc = do
 applyTst :: Pointer -> Value -> Value -> Result Value
 applyTst path v doc = do
     v' <- get path doc
-    unless (v == v') Error (T.unpack $ "Element at " <> formatPointer path <> "does not match.")
+    unless (v == v') (Error . T.unpack $ "Element at \"" <> formatPointer path <> "\" fails test.")
     return doc
 
 -- * Utilities

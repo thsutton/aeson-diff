@@ -1,1 +1,1 @@
-Cannot insert beneath missing object index: "baz"
+Cannot insert missing object member at index "baz" in pointer "/baz/bat".
