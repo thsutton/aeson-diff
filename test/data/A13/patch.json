@@ -1,7 +1,0 @@
-[
-    {
-        "op": "remove",
-        "path": "/baz",
-        "value": "qux"
-    }
-]

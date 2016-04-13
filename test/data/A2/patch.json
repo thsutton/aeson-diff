@@ -1,7 +1,0 @@
-[
-    {
-        "op": "add",
-        "path": "/foo/1",
-        "value": "qux"
-    }
-]
