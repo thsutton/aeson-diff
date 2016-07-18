@@ -13,9 +13,11 @@ module Data.Aeson.Diff (
     Pointer,
     Key(..),
     Operation(..),
+    Config(..),
 
     -- * Functions
     diff,
+    diff',
     patch,
     applyOperation,
 ) where
@@ -44,7 +46,14 @@ import Data.Vector.Distance
 import Data.Aeson.Patch
 import Data.Aeson.Pointer
 
+data Config = Config
+  { configTstBeforeRem :: Bool
+  }
 
+defaultConfig :: Config
+defaultConfig = Config False
+
+-- | Calculate the cost of an operation.
 operationCost :: Operation -> Int
 operationCost op =
     case op of
@@ -88,11 +97,21 @@ rep p v = Patch [Rep (Pointer p) v]
 -- * Operations
 
 -- | Compare two JSON documents and generate a patch describing the differences.
+--
+-- Uses the 'defaultConfig'.
 diff
-    :: Value
+  :: Value
+  -> Value
+  -> Patch
+diff = diff' defaultConfig
+
+-- | Compare two JSON documents and generate a patch describing the differences.
+diff'
+    :: Config
+    -> Value
     -> Value
     -> Patch
-diff = worker []
+diff' Config{..} = worker []
   where
     check :: Monoid m => Bool -> m -> m
     check b v = if b then mempty else v

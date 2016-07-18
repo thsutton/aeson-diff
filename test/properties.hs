@@ -21,6 +21,7 @@ import           Test.QuickCheck
 import           Test.QuickCheck.Instances  ()
 
 import Data.Aeson.Diff
+import Data.Aeson.Patch
 
 showIt :: Value -> String
 showIt = BL.unpack . encode
@@ -114,6 +115,17 @@ prop_diff_objects
     -> Bool
 prop_diff_objects (AnObject m1) (AnObject m2) =
     diffApply m1 m2
+
+-- | Check that 'Rem' always follows a 'Tst'.
+prop_tst_before_rem
+  :: Wellformed Value
+  -> Wellformed Value
+  -> Bool
+prop_tst_before_rem (Wellformed f) (Wellformed t) =
+  let ops = zip [1..] (patchOperations $ diff' (Config True) f t)
+      rs = map fst . filter (isRem . snd) $ ops
+      ts = map fst . filter (isTst . snd) $ ops
+  in (length rs <= length ts) && all (\r -> (r - 1) `elem` ts) ts
 
 --
 -- Use Template Haskell to automatically run all of the properties above.

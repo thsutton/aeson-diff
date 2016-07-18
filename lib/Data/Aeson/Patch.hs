@@ -5,6 +5,8 @@
 module Data.Aeson.Patch (
   Patch(..),
   Operation(..),
+  isRem,
+  isTst,
 ) where
 
 import           Control.Applicative
@@ -54,6 +56,14 @@ data Operation
     | Tst { changePointer :: Pointer, changeValue :: Value }
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.6
   deriving (Eq, Show)
+
+isRem :: Operation -> Bool
+isRem Rem{} = True
+isRem _ = False
+
+isTst :: Operation -> Bool
+isTst Tst{} = True
+isTst _ = False
 
 instance ToJSON Operation where
     toJSON (Add p v) = object
