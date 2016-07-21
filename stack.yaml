@@ -1,5 +1,5 @@
-resolver: lts-5.11
+resolver: lts-6.7
 extra-deps:
-- edit-distance-vector-1.0.0.3
+- edit-distance-vector-1.0.0.4
 flags: {}
 extra-package-dbs: []
