@@ -50,11 +50,13 @@ The `json-diff` command compares two JSON documents and extracts a patch
 describing the differences between the first document and the second.
 
 ````
-Usage: json-diff [-o|--output OUTPUT] FROM TO
+Usage: json-diff [-T|--test-before-remove] [-o|--output OUTPUT] FROM TO
 Generate a patch between two JSON documents.
 
 Available options:
     -h,--help                Show this help text
+    -T,--test-before-remove  Include a test before each remove.
+    -o,--output OUTPUT       Write patch to file OUTPUT.
 ````
 
 ### json-patch command

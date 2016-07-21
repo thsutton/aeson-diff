@@ -1,3 +1,12 @@
+aeson-diff 1.1.0.0
+
+    * aeson-diff can now, optionally, generate a test operation before each
+      remove.
+
+    * Add '--test-before-remove' option to 'json-diff' command.
+
+    * Add 'Config' type and 'diff'' to allow optional behaviours.
+
 aeson-diff 1.0.0.1
 
     * Remove the `patch'` function before anyone gets attached to it.
