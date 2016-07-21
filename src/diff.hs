@@ -43,6 +43,7 @@ optionParser = Options
         (  long "output"
         <> short 'o'
         <> metavar "OUTPUT"
+        <> help "Write patch to file OUTPUT."
         <> value Nothing
         )
     <*> argument fileP
