@@ -2,6 +2,8 @@ Aeson Diff
 ==========
 
 [![Build Status][badge]][status]
+[![Hackage](https://img.shields.io/hackage/v/aeson-diff.svg?maxAge=2592000)]()
+[![Hackage-Deps](https://img.shields.io/hackage-deps/v/aeson-diff.svg?maxAge=2592000)]()
 
 This is a small library for working with changes to JSON documents. It
 includes a library and two executables in the style of diff(1) and
