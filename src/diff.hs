@@ -94,7 +94,8 @@ process :: Configuration -> IO ()
 process Configuration{..} = do
     json_from <- jsonFile cfgFrom
     json_to <- jsonFile cfgTo
-    let p = diff json_from json_to
+    let c = Config cfgTst
+    let p = diff' c json_from json_to
     BS.hPutStrLn cfgOut $ BSL.toStrict (encode p)
 
 main :: IO ()
