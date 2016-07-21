@@ -14,7 +14,6 @@ module Data.Aeson.Diff (
     Key(..),
     Operation(..),
     Config(..),
-
     -- * Functions
     diff,
     diff',
@@ -40,18 +39,22 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
-
-import Data.Vector.Distance
+import           Data.Vector.Distance
 
 import Data.Aeson.Patch
 import Data.Aeson.Pointer
 
+-- * Configuration
+
+-- | Configuration for the diff algorithm.
 data Config = Config
   { configTstBeforeRem :: Bool
   }
 
 defaultConfig :: Config
 defaultConfig = Config False
+
+-- * Costs
 
 -- | Calculate the cost of an operation.
 operationCost :: Operation -> Int
@@ -64,40 +67,31 @@ operationCost op =
       Cpy{} -> 1
       Tst{} -> valueSize (changeValue op)
 
--- | Modify the 'Pointer's of an 'Operation'.
---
--- This is typically used to add a prefix to the 'Pointer's in an
-modifyPath :: ([Key] -> [Key]) -> Operation -> Operation
-modifyPath f op = from (change op)
-  where
-    fn :: Pointer -> Pointer
-    fn (Pointer p) = Pointer (f p)
-    change op = op { changePointer = fn (changePointer op) }
-    from op =
-        case op of
-          Mov{} -> op { fromPointer = fn (fromPointer op) }
-          Cpy{} -> op { fromPointer = fn (fromPointer op) }
-          _     -> op
-
+-- | Estimate the size of a JSON 'Value'.
+valueSize :: Value -> Int
+valueSize val = case val of
+    Object o -> sum . fmap valueSize . HM.elems $ o
+    Array  a -> V.sum $ V.map valueSize a
+    _        -> 1
 
 -- * Atomic patches
 
 -- | Construct a patch with a single 'Add' operation.
-ins :: Config -> Path -> Value -> [Operation]
-ins cfg p v = [Add (Pointer p) v]
+ins :: Config -> Pointer -> Value -> [Operation]
+ins cfg p v = [Add p v]
 
 -- | Construct a patch with a single 'Rem' operation.
-del :: Config -> Path -> Value -> [Operation]
+del :: Config -> Pointer -> Value -> [Operation]
 del Config{..} p v =
   if configTstBeforeRem
-  then [Tst (Pointer p) v, Rem (Pointer p)]
-  else [Rem (Pointer p)]
+  then [Tst p v, Rem p]
+  else [Rem p]
 
 -- | Construct a patch which changes 'Rep' operation.
-rep :: Path -> Value -> [Operation]
-rep p v = [Rep (Pointer p) v]
+rep :: Config -> Pointer -> Value -> [Operation]
+rep Config{..} p v = [Rep p v]
 
--- * Operations
+-- * Diff
 
 -- | Compare two JSON documents and generate a patch describing the differences.
 --
@@ -114,28 +108,28 @@ diff'
     -> Value
     -> Value
     -> Patch
-diff' cfg@Config{..} v v' = Patch (worker [] v v')
+diff' cfg@Config{..} v v' = Patch (worker mempty v v')
   where
     check :: Monoid m => Bool -> m -> m
     check b v = if b then mempty else v
 
-    worker :: Path -> Value -> Value -> [Operation]
+    worker :: Pointer -> Value -> Value -> [Operation]
     worker p v1 v2 = case (v1, v2) of
         -- For atomic values of the same type, emit changes iff they differ.
         (Null,      Null)      -> mempty
-        (Bool b1,   Bool b2)   -> check (b1 == b2) $ rep p v2
-        (Number n1, Number n2) -> check (n1 == n2) $ rep p v2
-        (String s1, String s2) -> check (s1 == s2) $ rep p v2
+        (Bool b1,   Bool b2)   -> check (b1 == b2) $ rep cfg p v2
+        (Number n1, Number n2) -> check (n1 == n2) $ rep cfg p v2
+        (String s1, String s2) -> check (s1 == s2) $ rep cfg p v2
 
         -- For structured values of the same type, walk them.
         (Array a1,  Array a2)  -> check (a1 == a2) $ workArray  p a1 a2
         (Object o1, Object o2) -> check (o1 == o2) $ workObject p o1 o2
 
         -- For values of different types, replace v1 with v2.
-        _                      -> rep p v2
+        _                      -> rep cfg p v2
 
     -- Walk the keys in two objects, producing a 'Patch'.
-    workObject :: Path -> Object -> Object -> [Operation]
+    workObject :: Pointer -> Object -> Object -> [Operation]
     workObject path o1 o2 =
         let k1 = HM.keys o1
             k2 = HM.keys o2
@@ -144,35 +138,35 @@ diff' cfg@Config{..} v v' = Patch (worker [] v v')
             del_keys = filter (not . (`elem` k2)) k1
             deletions :: [Operation]
             deletions = concatMap
-                (\k -> del cfg [OKey k] (fromJust $ HM.lookup k o1))
+                (\k -> del cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o1))
                 del_keys
             -- Insertions
             ins_keys = filter (not . (`elem` k1)) k2
             insertions :: [Operation]
             insertions = concatMap
-                (\k -> ins cfg [OKey k] (fromJust $ HM.lookup k o2))
+                (\k -> ins cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o2))
                 ins_keys
             -- Changes
             chg_keys = filter (`elem` k2) k1
             changes :: [Operation]
             changes = concatMap
-                (\k -> worker [OKey k]
+                (\k -> worker (Pointer [OKey k])
                     (fromJust $ HM.lookup k o1)
                     (fromJust $ HM.lookup k o2))
                 chg_keys
-        in modifyPath (path <>) <$> (deletions <> insertions <> changes)
+        in modifyPointer (path <>) <$> (deletions <> insertions <> changes)
 
     -- Use an adaption of the Wagner-Fischer algorithm to find the shortest
     -- sequence of changes between two JSON arrays.
-    workArray :: Path -> Array -> Array -> [Operation]
-    workArray path ss tt = fmap (modifyPath (path <>)) . snd . fmap concat $ leastChanges params ss tt
+    workArray :: Pointer -> Array -> Array -> [Operation]
+    workArray path ss tt = fmap (modifyPointer (path <>)) . snd . fmap concat $ leastChanges params ss tt
       where
         params :: Params Value [Operation] (Sum Int)
         params = Params{..}
         equivalent = (==)
-        delete i = del cfg [AKey i]
-        insert i = ins cfg [AKey i]
-        substitute i = worker [AKey i]
+        delete i = del cfg (Pointer [AKey i])
+        insert i = ins cfg (Pointer [AKey i])
+        substitute i = worker (Pointer [AKey i])
         cost = Sum . sum . fmap operationCost
         -- Position is advanced by grouping operations with same "head" index:
         -- + groups of many operations advance one
@@ -212,6 +206,8 @@ diff' cfg@Config{..} v v' = Patch (worker [] v v')
             | otherwise        = 0
         pos Tst{changePointer=Pointer path} = 0
 
+-- * Patching
+
 -- | Apply a patch to a JSON document.
 patch
     :: Patch
@@ -244,28 +240,28 @@ applyOperation op json = case op of
 -- - A single 'AKey' inserts at the corresponding location.
 -- - Longer 'Paths' traverse if they can and fail otherwise.
 applyAdd :: Pointer -> Value -> Value -> Result Value
-applyAdd from@(Pointer path) = go path
+applyAdd pointer = go pointer
   where
-    go [] val _ =
+    go (Pointer []) val _ =
         return val
-    go [AKey i] v' (Array v) =
+    go (Pointer [AKey i]) v' (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
             fn _ = return (Just v')
         in return (Array $ vInsert i v' v)
-    go (AKey i : path) v' (Array v) =
+    go (Pointer (AKey i : path)) v' (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "insert" "array" i from
-            fn (Just d) = Just <$> go path v' d
+            fn Nothing = cannot "insert" "array" i pointer
+            fn (Just d) = Just <$> go (Pointer path) v' d
         in Array <$> vModify i fn v
-    go [OKey n] v' (Object m) =
+    go (Pointer [OKey n]) v' (Object m) =
         return . Object $ HM.insert n v' m
-    go (OKey n : path) v' (Object o) =
+    go (Pointer (OKey n : path)) v' (Object o) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "insert" "object" n from
-            fn (Just d) = Just <$> go path v' d
+            fn Nothing = cannot "insert" "object" n pointer
+            fn (Just d) = Just <$> go (Pointer path) v' d
         in Object <$> hmModify n fn o
-    go (OKey n : path) v' array@(Array v)
-        | n == "-" = go (AKey (V.length v) : path) v' array
+    go (Pointer (OKey n : path)) v' array@(Array v)
+        | n == "-" = go (Pointer (AKey (V.length v) : path)) v' array
     go path _ v = pointerFailure path v
 
 -- | Apply a 'Rem' operation to a document.
@@ -301,7 +297,7 @@ applyRem from@(Pointer path) = go path
     go (OKey n : path) array@(Array v)
         | n == "-" = go (AKey (V.length v) : path) array
     -- Type mismatch: clearly the thing we're deleting isn't here.
-    go path value = pointerFailure path value
+    go path value = pointerFailure from value
 
 -- | Apply a 'Rep' operation to a document.
 --
@@ -347,15 +343,6 @@ applyTst path v doc = do
 -- $ These are some utility functions used in the functions defined
 -- above. Mostly they just fill gaps in the APIs of the "Data.Vector"
 -- and "Data.HashMap.Strict" modules.
-
--- | Estimate the size of a JSON 'Value'.
---
--- This is used in the diff cost metric function.
-valueSize :: Value -> Int
-valueSize val = case val of
-    Object o -> sum . fmap valueSize . HM.elems $ o
-    Array  a -> V.sum $ V.map valueSize a
-    _        -> 1
 
 -- | Delete an element in a vector.
 vDelete :: Int -> Vector a -> Vector a
