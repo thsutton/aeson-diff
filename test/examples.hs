@@ -15,7 +15,7 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import           Data.Char
 import           Data.Either
 import           Data.Functor
-import           Data.List                  (nub)
+import           Data.List                  (isInfixOf, nub)
 import           Data.Maybe
 import           Data.Monoid
 import           System.Directory
@@ -77,8 +77,9 @@ runExample :: (Value, Either String Patch, Either String Value) -> Maybe String
 runExample (doc, diff, res) =
     case (diff, res) of
         (Left perr, Left err)
-            | perr == err -> success "Patch has expected error."
-            | otherwise   -> failure ("Unexpected error `" <> perr <> "'.")
+            | err `isInfixOf` perr -> success "Patch has expected error."
+            | perr `isInfixOf` err -> success "Patch has expected error."
+            | otherwise   -> failure ("Unexpected error `" <> perr <> "' was not '" <> err <> "'.")
         (Left err, Right _) ->
             failure ("Couldn't load patch: " <> err)
         (Right diff, Right res) ->

@@ -1,1 +1,2 @@
 Could not parse patch: when expecting a Array, encountered Object instead
+Error in $: Could not parse patch: expected Array, encountered Object
