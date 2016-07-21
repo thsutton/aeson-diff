@@ -83,16 +83,19 @@ modifyPath f op = from (change op)
 -- * Atomic patches
 
 -- | Construct a patch with a single 'Add' operation.
-ins :: Path -> Value -> Patch
-ins p v = Patch [Add (Pointer p) v]
+ins :: Config -> Path -> Value -> [Operation]
+ins cfg p v = [Add (Pointer p) v]
 
 -- | Construct a patch with a single 'Rem' operation.
-del :: Path -> Value -> Patch
-del p v = Patch [Rem (Pointer p)]
+del :: Config -> Path -> Value -> [Operation]
+del Config{..} p v =
+  if configTstBeforeRem
+  then [Tst (Pointer p) v, Rem (Pointer p)]
+  else [Rem (Pointer p)]
 
 -- | Construct a patch which changes 'Rep' operation.
-rep :: Path -> Value -> Patch
-rep p v = Patch [Rep (Pointer p) v]
+rep :: Path -> Value -> [Operation]
+rep p v = [Rep (Pointer p) v]
 
 -- * Operations
 
@@ -111,12 +114,12 @@ diff'
     -> Value
     -> Value
     -> Patch
-diff' Config{..} = worker []
+diff' cfg@Config{..} v v' = Patch (worker [] v v')
   where
     check :: Monoid m => Bool -> m -> m
     check b v = if b then mempty else v
 
-    worker :: Path -> Value -> Value -> Patch
+    worker :: Path -> Value -> Value -> [Operation]
     worker p v1 v2 = case (v1, v2) of
         -- For atomic values of the same type, emit changes iff they differ.
         (Null,      Null)      -> mempty
@@ -132,43 +135,44 @@ diff' Config{..} = worker []
         _                      -> rep p v2
 
     -- Walk the keys in two objects, producing a 'Patch'.
-    workObject :: Path -> Object -> Object -> Patch
+    workObject :: Path -> Object -> Object -> [Operation]
     workObject path o1 o2 =
         let k1 = HM.keys o1
             k2 = HM.keys o2
             -- Deletions
+            del_keys :: [Text]
             del_keys = filter (not . (`elem` k2)) k1
-            deletions = Patch $ fmap
-                (\k -> Rem (Pointer [OKey k]))
+            deletions :: [Operation]
+            deletions = concatMap
+                (\k -> del cfg [OKey k] (fromJust $ HM.lookup k o1))
                 del_keys
             -- Insertions
             ins_keys = filter (not . (`elem` k1)) k2
-            insertions = Patch $ fmap
-                (\k -> Add (Pointer [OKey k]) . fromJust $ HM.lookup k o2)
+            insertions :: [Operation]
+            insertions = concatMap
+                (\k -> ins cfg [OKey k] (fromJust $ HM.lookup k o2))
                 ins_keys
             -- Changes
             chg_keys = filter (`elem` k2) k1
-            changes = fmap
+            changes :: [Operation]
+            changes = concatMap
                 (\k -> worker [OKey k]
                     (fromJust $ HM.lookup k o1)
                     (fromJust $ HM.lookup k o2))
                 chg_keys
-        in Patch . fmap (modifyPath (path <>)) . patchOperations $ (deletions <> insertions <> mconcat changes)
+        in modifyPath (path <>) <$> (deletions <> insertions <> changes)
 
     -- Use an adaption of the Wagner-Fischer algorithm to find the shortest
     -- sequence of changes between two JSON arrays.
-    workArray :: Path -> Array -> Array -> Patch
-    workArray path ss tt = Patch . fmap (modifyPath (path <>)) . snd . fmap concat $ leastChanges params ss tt
+    workArray :: Path -> Array -> Array -> [Operation]
+    workArray path ss tt = fmap (modifyPath (path <>)) . snd . fmap concat $ leastChanges params ss tt
       where
         params :: Params Value [Operation] (Sum Int)
         params = Params{..}
         equivalent = (==)
-        delete i v = [Rem (Pointer [AKey i])]
-        insert i v = [Add (Pointer [AKey i]) v]
-        substitute i v v' =
-            let p = [AKey i]
-                Patch ops = diff v v'
-            in fmap (modifyPath (p <>)) ops
+        delete i = del cfg [AKey i]
+        insert i = ins cfg [AKey i]
+        substitute i = worker [AKey i]
         cost = Sum . sum . fmap operationCost
         -- Position is advanced by grouping operations with same "head" index:
         -- + groups of many operations advance one
