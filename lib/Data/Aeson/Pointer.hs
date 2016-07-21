@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 -- | Description: JSON Pointers as described in RFC 6901.
-
 module Data.Aeson.Pointer (
   Pointer(..),
   Key(..),
@@ -64,14 +63,40 @@ newtype Pointer = Pointer { pointerPath :: Path }
   deriving (Eq, Show, Monoid)
 
 -- | Format a 'Pointer' as described in RFC 6901.
+--
+-- >>> formatPointer (Pointer [])
+-- ""
+-- >>> formatPointer (Pointer [OKey ""])
+-- "/"
+-- >>> formatPointer (Pointer [OKey " "])
+-- "/ "
+-- >>> formatPointer (Pointer [OKey "foo"])
+-- "/foo"
+-- >>> formatPointer (Pointer [OKey "foo", AKey 0])
+-- "/foo/0"
+-- >>> formatPointer (Pointer [OKey "a/b"])
+-- "/a~1b"
+-- >>> formatPointer (Pointer [OKey "c%d"])
+-- "/c%d"
+-- >>> formatPointer (Pointer [OKey "e^f"])
+-- "/e^f"
+-- >>> formatPointer (Pointer [OKey "g|h"])
+-- "/g|h"
+-- >>> formatPointer (Pointer [OKey "i\\j"])
+-- "/i\\j"
+-- >>> formatPointer (Pointer [OKey "k\"l"])
+-- "/k\"l"
+-- >>> formatPointer (Pointer [OKey "m~n"])
+-- "/m~0n"
 formatPointer :: Pointer -> Text
+formatPointer (Pointer []) = ""
 formatPointer (Pointer path) = "/" <> T.intercalate "/" (formatKey <$> path)
 
 -- | Report an error following a pointer.
 pointerFailure :: Path -> Value -> Result a
-pointerFailure [] value = Error ("UNPOSSIBLE!" <> show value)
+pointerFailure [] value = Error "Cannot follow empty pointer. This is impossible."
 pointerFailure path@(key:rest) value =
-    fail . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
+    Error . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
   where
     doc = encode value
     pt = encode (Pointer path)
@@ -111,3 +136,6 @@ get (Pointer p) = get' p
     get' (OKey n : path) (Object v) =
         maybe (fail "") return (HM.lookup n v) >>= get' path
     get' path value = pointerFailure path value
+
+-- $setup
+-- >>> :set -XOverloadedStrings

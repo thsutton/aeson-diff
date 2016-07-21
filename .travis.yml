@@ -27,9 +27,9 @@ env:
     - CFLAGS=-I$HOME/.stack/local/include
     - LDFLAGS=-L$HOME/.stack/local/lib
   matrix:
-    - STACK_RESOLVER=lts-2
     - STACK_RESOLVER=lts-3
     - STACK_RESOLVER=lts-5
+    - STACK_RESOLVER=lts-6
 
 # Download the latest stack command.
 before_install:
