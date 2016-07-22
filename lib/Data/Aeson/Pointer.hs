@@ -4,10 +4,12 @@
 module Data.Aeson.Pointer (
   Pointer(..),
   Key(..),
-  pointerFailure,
-  Path,
+  -- * Representing pointers
   formatPointer,
+  parsePointer,
+  -- * Using pointers
   get,
+  pointerFailure,
 ) where
 
 import           Control.Applicative
@@ -24,7 +26,7 @@ import qualified Data.Vector                as V
 
 -- * Patch components
 
--- | Traverse a single layer of a JSON document.
+-- | Path components to traverse a single layer of a JSON document.
 data Key
     = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
     | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
@@ -92,17 +94,24 @@ formatPointer :: Pointer -> Text
 formatPointer (Pointer []) = ""
 formatPointer (Pointer path) = "/" <> T.intercalate "/" (formatKey <$> path)
 
--- | Report an error following a pointer.
-pointerFailure :: Path -> Value -> Result a
-pointerFailure [] value = Error "Cannot follow empty pointer. This is impossible."
-pointerFailure path@(key:rest) value =
-    Error . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
+-- | Parse a 'Pointer' as described in RFC 6901.
+parsePointer :: Text -> Parser Pointer
+parsePointer t
+  | T.null t = return (Pointer [])
+  | otherwise = Pointer <$> mapM key (drop 1 $ T.splitOn "/" t)
   where
-    doc = encode value
-    pt = encode (Pointer path)
-    ty = case key of
-           (AKey _) -> "array"
-           (OKey _) -> "object"
+    step t
+      | "0" `T.isPrefixOf` t = T.cons '~' (T.tail t)
+      | "1" `T.isPrefixOf` t = T.cons '/' (T.tail t)
+      | otherwise = T.cons '~' t
+    unesc :: Text -> Text
+    unesc t =
+      let l = T.split (== '~') t
+      in T.concat $ take 1 l <> fmap step (tail l)
+    key t
+      | T.null t         = fail "JSON components must not be empty."
+      | T.all isNumber t = return (AKey (read $ T.unpack t))
+      | otherwise        = return $ OKey (unesc t)
 
 instance ToJSON Pointer where
     toJSON pointer =
@@ -111,31 +120,30 @@ instance ToJSON Pointer where
 instance FromJSON Pointer where
     parseJSON = modifyFailure ("Could not parse JSON pointer: " <>) . parse
       where
-        parse (String t) = Pointer <$> mapM key (drop 1 $ T.splitOn "/" t)
+        parse (String t) = parsePointer t
         parse _ = fail "A JSON pointer must be a string."
-        step t
-              | "0" `T.isPrefixOf` t = T.cons '~' (T.tail t)
-              | "1" `T.isPrefixOf` t = T.cons '/' (T.tail t)
-              | otherwise = T.cons '~' t
-        unesc :: Text -> Text
-        unesc t =
-            let l = T.split (== '~') t
-            in T.concat $ take 1 l <> fmap step (tail l)
-        key t
-            | T.null t         = fail "JSON components must not be empty."
-            | T.all isNumber t = return (AKey (read $ T.unpack t))
-            | otherwise        = return $ OKey (unesc t)
 
--- | Get the value at a 'Path'.
+-- | Follow a 'Pointer' through a JSON document as described in RFC 6901.
 get :: Pointer -> Value -> Result Value
-get (Pointer p) = get' p
+get (Pointer []) v = return v
+get (Pointer (AKey i : path)) (Array v) =
+  maybe (fail "") return (v V.!? i) >>= get (Pointer path)
+get (Pointer (OKey n : path)) (Object v) =
+  maybe (fail "") return (HM.lookup n v) >>= get (Pointer path)
+get pointer value = pointerFailure pointer value
+
+-- | Report an error while following a pointer.
+pointerFailure :: Pointer -> Value -> Result a
+pointerFailure (Pointer []) value = Error "Cannot follow empty pointer. This is impossible."
+pointerFailure (Pointer path@(key:_)) value =
+    Error . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
   where
-    get' [] v = return v
-    get' (AKey i : path) (Array v) =
-        maybe (fail "") return (v V.!? i) >>= get' path
-    get' (OKey n : path) (Object v) =
-        maybe (fail "") return (HM.lookup n v) >>= get' path
-    get' path value = pointerFailure path value
+    doc = encode value
+    pt = encode path
+    ty = case key of
+           (AKey _) -> "array"
+           (OKey _) -> "object"
+
 
 -- $setup
 -- >>> :set -XOverloadedStrings
