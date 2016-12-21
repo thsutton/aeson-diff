@@ -30,6 +30,7 @@ env:
     - STACK_RESOLVER=lts-3
     - STACK_RESOLVER=lts-5
     - STACK_RESOLVER=lts-6
+    - STACK_RESOLVER=lts-7
 
 # Download the latest stack command.
 before_install:
