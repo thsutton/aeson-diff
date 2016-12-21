@@ -1,4 +1,4 @@
-resolver: lts-6.7
+resolver: lts-7.14
 extra-deps:
 - edit-distance-vector-1.0.0.4
 flags: {}
