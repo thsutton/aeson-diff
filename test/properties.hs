@@ -26,11 +26,11 @@ import Data.Aeson.Patch
 showIt :: Value -> String
 showIt = BL.unpack . encode
 
-data Wellformed a = Wellformed { wellformed :: a }
+newtype Wellformed a = Wellformed { wellformed :: a }
 
-data AnObject a = AnObject { anObject :: a }
+newtype AnObject a = AnObject { anObject :: a }
 
-data AnArray a = AnArray { anArray :: a }
+newtype AnArray a = AnArray { anArray :: a }
 
 instance Show (Wellformed Value) where
     show = showIt . wellformed
@@ -83,7 +83,7 @@ diffApply f t =
 
 result :: a -> A.Result a -> a
 result _ (A.Success a) = a
-result a _ = a
+result a _             = a
 
 -- | Patch extracted from identical documents should be mempty.
 prop_diff_id

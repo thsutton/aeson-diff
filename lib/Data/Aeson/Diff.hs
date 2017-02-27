@@ -47,7 +47,7 @@ import Data.Aeson.Pointer
 -- * Configuration
 
 -- | Configuration for the diff algorithm.
-data Config = Config
+newtype Config = Config
   { configTstBeforeRem :: Bool
   }
 
@@ -213,7 +213,7 @@ patch
     :: Patch
     -> Value
     -> Result Value
-patch (Patch []) val = return val
+patch (Patch []) val  = return val
 patch (Patch ops) val = foldlM (flip applyOperation) val ops
 
 -- | Apply an 'Operation' to a 'Value'.
@@ -250,14 +250,14 @@ applyAdd pointer = go pointer
         in return (Array $ vInsert i v' v)
     go (Pointer (AKey i : path)) v' (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "insert" "array" i pointer
+            fn Nothing  = cannot "insert" "array" i pointer
             fn (Just d) = Just <$> go (Pointer path) v' d
         in Array <$> vModify i fn v
     go (Pointer [OKey n]) v' (Object m) =
         return . Object $ HM.insert n v' m
     go (Pointer (OKey n : path)) v' (Object o) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "insert" "object" n pointer
+            fn Nothing  = cannot "insert" "object" n pointer
             fn (Just d) = Just <$> go (Pointer path) v' d
         in Object <$> hmModify n fn o
     go (Pointer (OKey n : path)) v' array@(Array v)
@@ -275,22 +275,22 @@ applyRem from@(Pointer path) = go path
     go [] _ = return Null
     go [AKey i] d@(Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "delete" "array" i from
+            fn Nothing  = cannot "delete" "array" i from
             fn (Just v) = return Nothing
         in Array <$> vModify i fn v
     go (AKey i : path) (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "traverse" "array" i from
+            fn Nothing  = cannot "traverse" "array" i from
             fn (Just o) = Just <$> go path o
         in Array <$> vModify i fn v
     go [OKey n] (Object m) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "delete" "object" n from
+            fn Nothing  = cannot "delete" "object" n from
             fn (Just _) = return Nothing
         in Object <$> hmModify n fn m
     go (OKey n : path) (Object m) =
         let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing = cannot "traverse" "object" n from
+            fn Nothing  = cannot "traverse" "object" n from
             fn (Just o) = Just <$> go path o
         in Object <$> hmModify n fn m
     -- Dodgy hack for "-" key which means "the end of the array".
@@ -398,7 +398,7 @@ hmModify
     -> HashMap k v
     -> Result (HashMap k v)
 hmModify k f m = case f (HM.lookup k m) of
-    Error e -> Error e
+    Error e          -> Error e
     Success Nothing  -> return $ HM.delete k m
     Success (Just v) -> return $ HM.insert k v m
 
