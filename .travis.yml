@@ -32,6 +32,12 @@ env:
     - STACK_RESOLVER=lts-6
     - STACK_RESOLVER=lts-7
     - STACK_RESOLVER=lts-8
+    - STACK_RESOLVER=nightly
+
+matrix:
+  fast_finish: true
+  allow_failures:
+      - env: STACK_RESOLVER=nightly
 
 # Download the latest stack command.
 before_install:
