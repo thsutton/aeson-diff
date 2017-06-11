@@ -4,6 +4,7 @@
 module Data.Aeson.Pointer (
   Pointer(..),
   Key(..),
+  Path,
   -- * Representing pointers
   formatPointer,
   parsePointer,
