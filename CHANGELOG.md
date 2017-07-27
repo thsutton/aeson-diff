@@ -1,3 +1,7 @@
+aeson-diff 1.1.0.3
+
+    * Relax upper bound on base dependency for Stackage LTS-9.
+
 aeson-diff 1.1.0.0
 
     * aeson-diff can now, optionally, generate a test operation before each
