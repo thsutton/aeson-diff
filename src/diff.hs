@@ -18,7 +18,7 @@ import           System.IO
 type File = Maybe FilePath
 
 -- | Command-line options.
-data Options = Options
+data DiffOptions = DiffOptions
     { optionTst  :: Bool
     , optionOut  :: File
     , optionFrom :: File
@@ -32,8 +32,8 @@ data Configuration = Configuration
     , cfgTo   :: Handle
     }
 
-optionParser :: Parser Options
-optionParser = Options
+optionParser :: Parser DiffOptions
+optionParser = DiffOptions
     <$> switch
         (  long "test-before-remove"
         <> short 'T'
@@ -66,7 +66,7 @@ jsonFile fp = do
         Nothing -> error "Could not parse as JSON"
         Just v -> return v
 
-run :: Options -> IO ()
+run :: DiffOptions -> IO ()
 run opt = bracket (load opt) close process
   where
     openr :: Maybe FilePath -> IO Handle
@@ -77,8 +77,8 @@ run opt = bracket (load opt) close process
     openw Nothing = return stdout
     openw (Just p) = openFile p WriteMode
 
-    load :: Options -> IO Configuration
-    load Options{..} =
+    load :: DiffOptions -> IO Configuration
+    load DiffOptions{..} =
         Configuration
             <$> pure  optionTst
             <*> openw optionOut

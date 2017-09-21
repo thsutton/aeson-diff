@@ -16,7 +16,7 @@ import           System.IO
 type File = Maybe FilePath
 
 -- | Command-line options.
-data Options = Options
+data PatchOptions = PatchOptions
     { optionOut   :: File -- ^ JSON destination
     , optionPatch :: File -- ^ Patch input
     , optionFrom  :: File -- ^ JSON source
@@ -28,8 +28,8 @@ data Configuration = Configuration
     , cfgFrom  :: Handle
     }
 
-optionParser :: Parser Options
-optionParser = Options
+optionParser :: Parser PatchOptions
+optionParser = PatchOptions
     <$> option fileP
         (  long "output"
         <> short 'o'
@@ -59,7 +59,7 @@ jsonRead fp = do
         Nothing -> error "Could not parse as JSON"
         Just v -> return v
 
-run :: Options -> IO ()
+run :: PatchOptions -> IO ()
 run opt = bracket (load opt) close process
   where
     openr :: Maybe FilePath -> IO Handle
@@ -70,8 +70,8 @@ run opt = bracket (load opt) close process
     openw Nothing = return stdout
     openw (Just p) = openFile p WriteMode
 
-    load :: Options -> IO Configuration
-    load Options{..} =
+    load :: PatchOptions -> IO Configuration
+    load PatchOptions{..} =
         Configuration
             <$> openw optionOut
             <*> openr optionPatch
