@@ -1,7 +1,6 @@
 
 # Include Haskell tools
 language: haskell
-ghc: 7.8
 
 # Use the docker infrastructure
 sudo: false

@@ -1,3 +1,8 @@
+aeson-diff 1.1.0.4
+
+    * Resolve name clash that prevents building against aeson>=1.2 in
+      Stackage Nightly.
+
 aeson-diff 1.1.0.3
 
     * Relax upper bound on base dependency for Stackage LTS-9.
