@@ -23,6 +23,7 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Monoid
+import           Data.Semigroup             (Semigroup)
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 
@@ -33,7 +34,7 @@ import Data.Aeson.Pointer
 -- | Describes the changes between two JSON documents.
 newtype Patch = Patch
     { patchOperations :: [Operation] }
-  deriving (Eq, Show, Monoid)
+  deriving (Eq, Show, Semigroup, Monoid)
 
 instance ToJSON Patch where
     toJSON (Patch ops) = toJSON ops
