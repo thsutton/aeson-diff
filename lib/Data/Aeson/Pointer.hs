@@ -21,6 +21,7 @@ import           Data.Char                  (isNumber)
 import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Scientific
+import           Data.Semigroup             (Semigroup)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
@@ -63,7 +64,7 @@ type Path = [Key]
 --
 -- Defined in RFC 6901 <http://tools.ietf.org/html/rfc6901>
 newtype Pointer = Pointer { pointerPath :: Path }
-  deriving (Eq, Ord, Show, Monoid)
+  deriving (Eq, Ord, Show, Semigroup, Monoid)
 
 -- | Format a 'Pointer' as described in RFC 6901.
 --
