@@ -1,3 +1,7 @@
+aeson-diff 1.1.0.5
+
+    * Support GHC-8.4.x in recent Stackage releases.
+
 aeson-diff 1.1.0.4
 
     * Resolve name clash that prevents building against aeson>=1.2 in
