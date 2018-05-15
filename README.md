@@ -2,7 +2,7 @@ Aeson Diff
 ==========
 
 [![Build Status][badge]][status]
-[![Hackage](https://img.shields.io/hackage/v/aeson-diff.svg?maxAge=2592000)]()
+[![Hackage](https://img.shields.io/hackage/v/aeson-diff.svg?maxAge=2592000)](https://hackage.haskell.org/package/aeson-diff)
 [![Hackage-Deps](https://img.shields.io/hackage-deps/v/aeson-diff.svg?maxAge=2592000)]()
 
 This is a small library for working with changes to JSON documents. It
