@@ -1,5 +1,5 @@
 name:                aeson-diff
-version:             1.1.0.5
+version:             1.1.0.6
 synopsis:            Extract and apply patches to JSON documents.
 description:
   .
@@ -24,7 +24,7 @@ extra-source-files:  README.md
                    , test/data/cases/*.json
                    , test/data/cases/*.txt
 
-source-repository     HEAD
+source-repository      HEAD
   type: git
   location: https://github.com/thsutton/aeson-diff
 
@@ -34,7 +34,7 @@ library
   exposed-modules:     Data.Aeson.Diff
                      , Data.Aeson.Patch
                      , Data.Aeson.Pointer
-  build-depends:       base >=4.5 && <4.12
+  build-depends:       base >=4.5 && <4.13
                      , aeson
                      , bytestring >= 0.10
                      , edit-distance-vector
