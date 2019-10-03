@@ -25,9 +25,10 @@ env:
     - CFLAGS=-I$HOME/.stack/local/include
     - LDFLAGS=-L$HOME/.stack/local/lib
   matrix:
-    - STACK_RESOLVER=lts-9
     - STACK_RESOLVER=lts-11
     - STACK_RESOLVER=lts-12
+    - STACK_RESOLVER=lts-13
+    - STACK_RESOLVER=lts-14
     - STACK_RESOLVER=nightly
 
 matrix:
