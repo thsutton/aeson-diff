@@ -84,8 +84,8 @@ ins cfg p v = [Add p v]
 del :: Config -> Pointer -> Value -> [Operation]
 del Config{..} p v =
   if configTstBeforeRem
-  then [Tst p v, Rem p]
-  else [Rem p]
+  then [Tst p v, Rem p (Just v)]
+  else [Rem p (Just v)]
 
 -- | Construct a patch which changes 'Rep' operation.
 rep :: Config -> Pointer -> Value -> [Operation]
@@ -223,7 +223,7 @@ applyOperation
     -> Result Value
 applyOperation op json = case op of
     Add path v'   -> applyAdd path v' json
-    Rem path      -> applyRem path    json
+    Rem path _    -> applyRem path    json
     Rep path v'   -> applyRep path v' json
     Tst path v    -> applyTst path v  json
     Cpy path from -> applyCpy path from json

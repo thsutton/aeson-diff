@@ -64,7 +64,7 @@ data Operation
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.5
     | Mov { changePointer :: Pointer, fromPointer :: Pointer }
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.4
-    | Rem { changePointer :: Pointer }
+    | Rem { changePointer :: Pointer, deletedValue :: Maybe Value }
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.2
     | Rep { changePointer :: Pointer, changeValue :: Value }
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.3
@@ -88,7 +88,7 @@ instance ToJSON Operation where
         , "path" .= p
         , "from" .= f
         ]
-    toJSON (Rem p) = object
+    toJSON (Rem p _) = object
         [ ("op", "remove")
         , "path" .= p
         ]
@@ -110,7 +110,7 @@ instance FromJSON Operation where
             =   (op v "add"     *> (Add <$> v .: "path" <*> v .: "value"))
             <|> (op v "copy"    *> (Cpy <$> v .: "path" <*> v .: "from"))
             <|> (op v "move"    *> (Mov <$> v .: "path" <*> v .: "from"))
-            <|> (op v "remove"  *> (Rem <$> v .: "path"))
+            <|> (op v "remove"  *> (Rem <$> v .: "path" <*> (pure Nothing)))
             <|> (op v "replace" *> (Rep <$> v .: "path" <*> v .: "value"))
             <|> (op v "test"    *> (Tst <$> v .: "path" <*> v .: "value"))
             <|> fail ("Expected a JSON patch operation, encountered: " <> BS.unpack (encode o))
