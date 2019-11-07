@@ -206,6 +206,11 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
             | otherwise        = 0
         pos Tst{changePointer=Pointer path} = 0
 
+cleanup :: [Operation] -> [Operation]
+cleanup ops =
+    let siblings = groupBy ((==) `on` (init . changePointer))
+    in []
+
 -- * Patching
 
 -- | Apply a patch to a JSON document.
