@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 -- | Description: JSON Pointers as described in RFC 6901.
@@ -25,6 +26,7 @@ import           Data.Semigroup             (Semigroup)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
+import           GHC.Generics               (Generic)
 
 -- * Patch components
 
@@ -32,7 +34,7 @@ import qualified Data.Vector                as V
 data Key
     = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
     | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Key where
     toJSON (OKey t) = String t
@@ -64,7 +66,7 @@ type Path = [Key]
 --
 -- Defined in RFC 6901 <http://tools.ietf.org/html/rfc6901>
 newtype Pointer = Pointer { pointerPath :: Path }
-  deriving (Eq, Ord, Show, Semigroup, Monoid)
+  deriving (Eq, Ord, Show, Semigroup, Monoid, Generic)
 
 -- | Format a 'Pointer' as described in RFC 6901.
 --

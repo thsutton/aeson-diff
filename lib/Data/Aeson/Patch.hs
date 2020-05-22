@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -26,6 +27,7 @@ import           Data.Monoid
 import           Data.Semigroup             (Semigroup)
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
+import           GHC.Generics               (Generic)
 
 import Data.Aeson.Pointer
 
@@ -34,7 +36,7 @@ import Data.Aeson.Pointer
 -- | Describes the changes between two JSON documents.
 newtype Patch = Patch
     { patchOperations :: [Operation] }
-  deriving (Eq, Show, Semigroup, Monoid)
+  deriving (Eq, Show, Semigroup, Monoid, Generic)
 
 instance ToJSON Patch where
     toJSON (Patch ops) = toJSON ops
@@ -70,7 +72,7 @@ data Operation
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.3
     | Tst { changePointer :: Pointer, changeValue :: Value }
     -- ^ http://tools.ietf.org/html/rfc6902#section-4.6
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 instance ToJSON Operation where
     toJSON (Add p v) = object
