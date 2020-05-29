@@ -25,7 +25,7 @@ import           System.FilePath
 import           System.FilePath.Glob
 
 roots :: [FilePath]
-roots = ["test/data/rfc6902", "test/data/cases"]
+roots = ["test/data/rfc6902", "test/data/patch-cases"]
 
 globPattern :: FilePath
 globPattern = "*.*"
@@ -39,7 +39,6 @@ readDocument root name = do
     doc <- eitherDecodeStrict <$> BS.readFile file
 
     return $ either (\e -> derp $ "Could not decode document: " <> e) id doc
-
 
 readPatch :: FilePath -> FilePath -> IO (Either String Patch)
 readPatch root name = do
@@ -66,7 +65,7 @@ readResult root name = do
     handle :: IOException -> IO (Maybe a)
     handle e = return Nothing
 
-readExample :: FilePath -> FilePath -> IO (Value, Either String Patch, Either String Value)
+readExample :: FilePath -> FilePath -> IO (Value, Either String Patch , Either String Value)
 readExample root name =
     (,,) <$> readDocument root name
          <*> readPatch root name

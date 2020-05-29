@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-
+{-# LANGUAGE ViewPatterns      #-}
 -- | Description: Extract and apply patches on JSON documents.
 --
 -- This module implements data types and operations to represent the
@@ -19,6 +19,7 @@ module Data.Aeson.Diff (
     diff',
     patch,
     applyOperation,
+    renderDiff,
 ) where
 
 import           Control.Applicative
@@ -31,12 +32,15 @@ import           Data.Foldable              (foldlM)
 import           Data.Hashable
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM
+import qualified Data.HashSet               as HS
 import           Data.List                  (groupBy, intercalate)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Scientific
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
+import qualified Data.Text.Encoding         as TE
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           Data.Vector.Distance
@@ -84,8 +88,11 @@ ins cfg p v = [Add p v]
 del :: Config -> Pointer -> Value -> [Operation]
 del Config{..} p v =
   if configTstBeforeRem
-  then [Tst p v, Rem p]
-  else [Rem p]
+  then [Tst p v, Rem p (Just v)]
+  else [Rem p (Just v)]
+
+mov :: Config -> Pointer -> Pointer -> [Operation]
+mov _ t f = [Mov t f]
 
 -- | Construct a patch which changes 'Rep' operation.
 rep :: Config -> Pointer -> Value -> [Operation]
@@ -128,38 +135,41 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
         -- For values of different types, replace v1 with v2.
         _                      -> rep cfg p v2
 
+    objectFindDel :: Value -> [(Text, Value)] -> Maybe (Text, [(Text, Value)])
+    objectFindDel _ [] = Nothing
+    objectFindDel needle (d@(k, straw) : ds)
+        | needle == straw = Just (k, ds)
+        | otherwise       =  (\(k, t) -> (k, d:t)) <$> objectFindDel needle ds
+    objectMoves :: ([Operation], [Operation], [(Text, Value)]) -> Text -> Value -> ([Operation], [Operation], [(Text, Value)])
+    objectMoves (as, ms, del) k v =
+        case objectFindDel v del of
+            Nothing          -> (ins cfg (Pointer [OKey k]) v <> as, ms, del)
+            Just (k2, del')  -> (as, mov cfg (Pointer [OKey k]) (Pointer [OKey k2]) <> ms, del')
+
     -- Walk the keys in two objects, producing a 'Patch'.
     workObject :: Pointer -> Object -> Object -> [Operation]
     workObject path o1 o2 =
-        let k1 = HM.keys o1
-            k2 = HM.keys o2
-            -- Deletions
-            del_keys :: [Text]
-            del_keys = filter (not . (`elem` k2)) k1
-            deletions :: [Operation]
-            deletions = concatMap
-                (\k -> del cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o1))
-                del_keys
-            -- Insertions
-            ins_keys = filter (not . (`elem` k1)) k2
-            insertions :: [Operation]
-            insertions = concatMap
-                (\k -> ins cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o2))
-                ins_keys
+        let k1 = HM.keysSet o1
+            k2 = HM.keysSet o2
+            -- Changed keys
+            dels' = HM.filterWithKey (\k v -> not $ k `HS.member` k2) o1
+            adds' = HM.filterWithKey (\k v -> not $ k `HS.member` k1) o2
+            chg_keys = HS.intersection k1 k2
+            (insertions, moves, deletions') = HM.foldlWithKey' objectMoves ([], [], HM.toList dels') adds'
+            deletions = concatMap (\(k,v) -> del cfg (Pointer [OKey k]) v) deletions'
             -- Changes
-            chg_keys = filter (`elem` k2) k1
             changes :: [Operation]
             changes = concatMap
                 (\k -> worker (Pointer [OKey k])
                     (fromJust $ HM.lookup k o1)
                     (fromJust $ HM.lookup k o2))
-                chg_keys
-        in modifyPointer (path <>) <$> (deletions <> insertions <> changes)
+                (HS.toList chg_keys)
+        in modifyPointer (path <>) <$> (insertions <> deletions <> moves <> changes)
 
     -- Use an adaption of the Wagner-Fischer algorithm to find the shortest
     -- sequence of changes between two JSON arrays.
     workArray :: Pointer -> Array -> Array -> [Operation]
-    workArray path ss tt = fmap (modifyPointer (path <>)) . snd . fmap concat $ leastChanges params ss tt
+    workArray path ss tt = rewriteLocalMoves . fmap (modifyPointer (path <>)) . snd . fmap concat $ leastChanges params ss tt
       where
         params :: Params Value [Operation] (Sum Int)
         params = Params{..}
@@ -206,6 +216,24 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
             | otherwise        = 0
         pos Tst{changePointer=Pointer path} = 0
 
+-- | Replace add/remove pairs with moves.
+--
+-- This only works for sibling keys and for values that are otherwise unmodified.
+-- And it's inefficient to boot. 
+rewriteLocalMoves :: [Operation] -> [Operation]
+rewriteLocalMoves ops = ops
+
+renderDiff :: Operation -> Text
+renderDiff (Add (formatPointer -> p) (formatValue -> v)) = T.unwords ["ADD", p, v]
+renderDiff (Cpy (formatPointer -> p1) (formatPointer -> p2)) = T.unwords ["COPY", p1, p2]
+renderDiff (Mov (formatPointer -> p1) (formatPointer -> p2)) = T.unwords ["MOVE", p1, p2]
+renderDiff (Rem (formatPointer -> p) _) = T.unwords ["REMOVE", p]
+renderDiff (Rep (formatPointer -> p) (formatValue -> v)) = T.unwords ["REPLACE", p, v]
+renderDiff (Tst (formatPointer -> p) (formatValue -> v)) = T.unwords ["TEST", p, v]
+
+formatValue :: Value -> Text
+formatValue = TE.decodeUtf8 . BS.toStrict . encode
+
 -- * Patching
 
 -- | Apply a patch to a JSON document.
@@ -223,7 +251,7 @@ applyOperation
     -> Result Value
 applyOperation op json = case op of
     Add path v'   -> applyAdd path v' json
-    Rem path      -> applyRem path    json
+    Rem path _    -> applyRem path    json
     Rep path v'   -> applyRep path v' json
     Tst path v    -> applyTst path v  json
     Cpy path from -> applyCpy path from json
