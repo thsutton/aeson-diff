@@ -81,6 +81,16 @@ diffApply f t =
        error ("BAD PATCH\n" <> BL.unpack (encode p) <> "\n"
                             <> result "<failure>" (BL.unpack . encode <$> patch p f))
 
+-- | Encoding a patch to and from JSON is an identity.
+prop_encode_decode
+    :: Wellformed Value
+    -> Wellformed Value
+    -> Bool
+prop_encode_decode (Wellformed f) (Wellformed t) = case A.eitherDecode $ A.encode p of
+  Left err -> error err
+  Right x -> x == p
+  where p = diff f t
+
 result :: a -> A.Result a -> a
 result _ (A.Success a) = a
 result a _             = a
