@@ -11,8 +11,7 @@ import           Control.Monad
 import           Data.Aeson                 as A
 import qualified Data.ByteString.Lazy.Char8 as BL
 import           Data.Functor
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import qualified Data.Aeson.KeyMap          as HM
 import           Data.Monoid
 import           Data.Text                  (Text)
 import qualified Data.Vector                as V
@@ -56,18 +55,6 @@ instance Arbitrary (AnObject Value) where
 
 instance Arbitrary (AnArray Value) where
     arbitrary = AnArray . Array . V.fromList <$> scaleSize (`div` 2) arbitrary
-
-instance Arbitrary Value where
-    arbitrary = sized vals
-      where vals :: Int -> Gen Value
-            vals n
-              | n <= 1 = oneof
-                         [ pure Null
-                         , Bool <$> arbitrary
-                         , Number . fromIntegral <$> (arbitrary :: Gen Int)
-                         , String <$> arbitrary
-                         ]
-              | otherwise = wellformed <$> arbitrary
 
 
 -- | Extracting and applying a patch is an identity.

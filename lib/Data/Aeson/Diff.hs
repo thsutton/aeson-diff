@@ -24,13 +24,13 @@ module Data.Aeson.Diff (
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Error.Class
-import           Data.Aeson
+import           Data.Aeson hiding (Key)
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as HM
 import           Data.Aeson.Types           (modifyFailure, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Foldable              (foldlM)
 import           Data.Hashable
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
 import           Data.List                  (groupBy, intercalate)
 import           Data.Maybe
 import           Data.Monoid
@@ -134,7 +134,7 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
         let k1 = HM.keys o1
             k2 = HM.keys o2
             -- Deletions
-            del_keys :: [Text]
+            del_keys :: [AesonKey.Key]
             del_keys = filter (not . (`elem` k2)) k1
             deletions :: [Operation]
             deletions = concatMap
@@ -342,7 +342,7 @@ applyTst path v doc = do
 
 -- $ These are some utility functions used in the functions defined
 -- above. Mostly they just fill gaps in the APIs of the "Data.Vector"
--- and "Data.HashMap.Strict" modules.
+-- and "Data.Aeson.KeyMap" modules.
 
 -- | Delete an element in a vector.
 vDelete :: Int -> Vector a -> Vector a
@@ -386,17 +386,16 @@ vModify i f v =
         (Just _ , Success (Just n)) -> return (V.update v (V.singleton (i, n)))
         (_      , Error   e       ) -> Error e
 
--- | Modify the value associated with a key in a 'HashMap'.
+-- | Modify the value associated with a key in a 'KeyMap'.
 --
 -- The function is passed the value defined for @k@, or 'Nothing'. If the
 -- function returns 'Nothing', the key and value are deleted from the map;
 -- otherwise the value replaces the existing value in the returned map.
 hmModify
-    :: (Eq k, Hashable k)
-    => k
+    :: AesonKey.Key
     -> (Maybe v -> Result (Maybe v))
-    -> HashMap k v
-    -> Result (HashMap k v)
+    -> HM.KeyMap v
+    -> Result (HM.KeyMap v)
 hmModify k f m = case f (HM.lookup k m) of
     Error e          -> Error e
     Success Nothing  -> return $ HM.delete k m

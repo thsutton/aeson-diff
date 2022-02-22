@@ -15,11 +15,13 @@ module Data.Aeson.Pointer (
 ) where
 
 import           Control.Applicative
-import           Data.Aeson
-import           Data.Aeson.Types
+import           Data.Aeson hiding (Key)
+import qualified Data.Aeson.Key (Key)
+import           Data.Aeson.Key (fromText, toText)
+import qualified Data.Aeson.KeyMap as HM
+import           Data.Aeson.Types hiding (Key)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
-import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Scientific
 import           Data.Semigroup             (Semigroup)
@@ -32,16 +34,16 @@ import           GHC.Generics               (Generic)
 
 -- | Path components to traverse a single layer of a JSON document.
 data Key
-    = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
-    | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
+    = OKey Data.Aeson.Key.Key -- ^ Traverse a 'Value' with an 'Object' constructor.
+    | AKey Int                -- ^ Traverse a 'Value' with an 'Array' constructor.
   deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Key where
-    toJSON (OKey t) = String t
+    toJSON (OKey t) = toJSON t
     toJSON (AKey a) = Number . fromInteger . toInteger $ a
 
 instance FromJSON Key where
-    parseJSON (String t) = return $ OKey t
+    parseJSON (String t) = return . OKey . fromText $ t
     parseJSON (Number n) =
         case toBoundedInteger n of
             Nothing -> fail "A numeric key must be a positive whole number."
@@ -50,7 +52,7 @@ instance FromJSON Key where
 
 formatKey :: Key -> Text
 formatKey (AKey i) = T.pack (show i)
-formatKey (OKey t) = T.concatMap esc t
+formatKey (OKey t) = T.concatMap esc $ toText t
   where
     esc :: Char -> Text
     esc '~' = "~0"
@@ -115,7 +117,7 @@ parsePointer t
     key t
       | T.null t         = fail "JSON components must not be empty."
       | T.all isNumber t = return (AKey (read $ T.unpack t))
-      | otherwise        = return $ OKey (unesc t)
+      | otherwise        = return . OKey . fromText $ unesc t
 
 instance ToJSON Pointer where
     toJSON pointer =
