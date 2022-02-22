@@ -14,7 +14,7 @@ author:              Thomas Sutton
 maintainer:          me@thomas-sutton.id.au
 copyright:           (c) 2015 Thomas Sutton and others.
 category:            JSON, Web, Algorithms
-build-type:          Simple
+build-type:          Custom
 cabal-version:       >=1.10
 extra-source-files:  README.md
                    , CHANGELOG.md
@@ -110,8 +110,9 @@ test-suite doctests
   main-is:             doctests.hs
   build-depends:       base
                      , QuickCheck
-                     , doctest >= 0.9
-                     , aeson >= 2.0.3
+                     , doctest >= 0.20
+  other-modules: Build_doctests
+
 
 test-suite             hlint-check
   buildable:           False
@@ -121,3 +122,8 @@ test-suite             hlint-check
   main-is:             hlint-check.hs
   build-depends:       base
                      , hlint
+
+custom-setup
+ setup-depends:
+   base >= 4 && <5,
+   cabal-doctest >= 1 && <1.1
