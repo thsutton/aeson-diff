@@ -44,35 +44,19 @@ import qualified Data.HashMap.Strict        as HM
 -- * Patch components
 
 -- | Path components to traverse a single layer of a JSON document.
-#if MIN_VERSION_aeson(2,0,0)
-data Key = OKey A.Key
-#else
 data Key = OKey Text
-#endif
   deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Key where
-#if MIN_VERSION_aeson(2,0,0)
-    toJSON (OKey t) = String (A.toText t)
-#else
     toJSON (OKey t) = String t
-#endif
 
 
 instance FromJSON Key where
-#if MIN_VERSION_aeson(2,0,0)
-    parseJSON (String t) = return $ OKey (A.fromText t)
-#else
     parseJSON (String t) = return $ OKey t
-#endif
     parseJSON _ = fail "A key element must be a string."
 
 formatKey :: Key -> Text
-#if MIN_VERSION_aeson(2,0,0)
-formatKey (OKey t) = T.concatMap esc (A.toText t)
-#else
 formatKey (OKey t) = T.concatMap esc t
-#endif
   where
     esc :: Char -> Text
     esc '~' = "~0"
@@ -136,11 +120,7 @@ parsePointer t
       in T.concat $ take 1 l <> fmap step (tail l)
     key t
       | T.null t         = return $ OKey ""
-#if MIN_VERSION_aeson(2,0,0)
-      | otherwise        = return $ OKey (A.fromText (unesc t))
-#else
       | otherwise        = return $ OKey (unesc t)
-#endif
 
 instance ToJSON Pointer where
     toJSON pointer =
@@ -155,15 +135,15 @@ instance FromJSON Pointer where
 -- | Follow a 'Pointer' through a JSON document as described in RFC 6901.
 get :: Pointer -> Value -> Result Value
 get (Pointer []) v = return v
-#if MIN_VERSION_aeson(2,0,0)
-get (Pointer (OKey k : path)) (Array v) = case readIntegral (A.toText k) of
-#else
 get (Pointer (OKey k : path)) (Array v) = case readIntegral k of
-#endif
   Just i -> maybe (fail "") return (v V.!? i) >>= get (Pointer path)
   Nothing -> Error "Expected a numeric pointer for array."
 get (Pointer (OKey n : path)) (Object v) =
+#if MIN_VERSION_aeson(2,0,0)
+  maybe (fail "") return (HM.lookup (A.fromText n) v) >>= get (Pointer path)
+#else
   maybe (fail "") return (HM.lookup n v) >>= get (Pointer path)
+#endif
 get pointer value = pointerFailure pointer value
 
 -- | Report an error while following a pointer.

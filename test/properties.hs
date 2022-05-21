@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE CPP               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -12,7 +13,6 @@ import           Data.Aeson                 as A
 import qualified Data.ByteString.Lazy.Char8 as BL
 import           Data.Functor
 import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Text                  (Text)
 import qualified Data.Vector                as V
@@ -22,6 +22,14 @@ import           Test.QuickCheck.Instances  ()
 
 import Data.Aeson.Diff
 import Data.Aeson.Patch
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key             as A
+import qualified Data.Aeson.KeyMap          as HM
+#else
+import qualified Data.HashMap.Strict        as HM
+#endif
+
 
 showIt :: Value -> String
 showIt = BL.unpack . encode
@@ -57,6 +65,7 @@ instance Arbitrary (AnObject Value) where
 instance Arbitrary (AnArray Value) where
     arbitrary = AnArray . Array . V.fromList <$> scaleSize (`div` 2) arbitrary
 
+#if !MIN_VERSION_aeson(2,0,0)
 instance Arbitrary Value where
     arbitrary = sized vals
       where vals :: Int -> Gen Value
@@ -68,7 +77,7 @@ instance Arbitrary Value where
                          , String <$> arbitrary
                          ]
               | otherwise = wellformed <$> arbitrary
-
+#endif
 
 -- | Extracting and applying a patch is an identity.
 diffApply
