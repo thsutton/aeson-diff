@@ -1,5 +1,4 @@
-{-# LANGUAGE CPP                        #-}
-
+{-# LANGUAGE CPP #-}
 
 module Data.Aeson.Diff.Util where
 
