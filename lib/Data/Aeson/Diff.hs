@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE CPP               #-}
 
 -- | Description: Extract and apply patches on JSON documents.
 --
@@ -30,7 +31,6 @@ import           Data.Aeson.Types           (modifyFailure, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Foldable              (foldlM)
 import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
 import           Data.Hashable
 import           Data.List                  (groupBy, intercalate)
 import           Data.Maybe
@@ -44,6 +44,14 @@ import           Data.Vector.Distance
 
 import Data.Aeson.Patch
 import Data.Aeson.Pointer
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key             as A
+import qualified Data.Aeson.KeyMap          as HM
+#else
+import qualified Data.HashMap.Strict        as HM
+#endif
+
 
 -- * Configuration
 
