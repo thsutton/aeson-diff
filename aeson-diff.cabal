@@ -35,7 +35,7 @@ library
                      , Data.Aeson.Patch
                      , Data.Aeson.Pointer
                      , Data.Aeson.Diff.Util
-  build-depends:       base >=4.9 && <4.16
+  build-depends:       base
                      , aeson
                      , bytestring >= 0.10
                      , edit-distance-vector
