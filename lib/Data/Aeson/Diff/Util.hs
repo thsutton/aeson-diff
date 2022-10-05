@@ -44,3 +44,11 @@ aesonDelete t = HM.delete (A.fromText t)
 aesonDelete :: (Eq k, Hashable k) => k -> HM.HashMap k v -> HM.HashMap k v
 aesonDelete = HM.delete
 #endif
+
+#if MIN_VERSION_aeson(2,0,0)
+aesonToList :: HM.KeyMap v -> [(A.Key, v)]
+aesonToList = HM.toList
+#else
+aesonToList :: HM.HashMap k v -> [(k, v)]
+aesonToList = HM.toList
+#endif
