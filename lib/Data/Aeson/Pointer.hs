@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE CPP                        #-}
 -- | Description: JSON Pointers as described in RFC 6901.
 module Data.Aeson.Pointer (
   Pointer(..),
@@ -12,44 +13,49 @@ module Data.Aeson.Pointer (
   -- * Using pointers
   get,
   pointerFailure,
+  -- * Util
+  readIntegral,
+  tShow
 ) where
 
 import           Control.Applicative
-import           Data.Aeson
-import           Data.Aeson.Types
+import qualified Data.Aeson                 as A
+import           Data.Aeson                 hiding (Key)
+import           Data.Aeson.Types           hiding (Key)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
-import qualified Data.HashMap.Strict        as HM
 import           Data.Monoid
 import           Data.Scientific
 import           Data.Semigroup             (Semigroup)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import           Data.Text.Read             (decimal)
 import qualified Data.Vector                as V
 import           GHC.Generics               (Generic)
+import           Text.Read                  (readMaybe)
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key             as A
+import qualified Data.Aeson.KeyMap          as HM
+#else
+import qualified Data.HashMap.Strict        as HM
+#endif
 
 -- * Patch components
 
 -- | Path components to traverse a single layer of a JSON document.
-data Key
-    = OKey Text -- ^ Traverse a 'Value' with an 'Object' constructor.
-    | AKey Int  -- ^ Traverse a 'Value' with an 'Array' constructor.
+data Key = OKey Text
   deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Key where
     toJSON (OKey t) = String t
-    toJSON (AKey a) = Number . fromInteger . toInteger $ a
+
 
 instance FromJSON Key where
     parseJSON (String t) = return $ OKey t
-    parseJSON (Number n) =
-        case toBoundedInteger n of
-            Nothing -> fail "A numeric key must be a positive whole number."
-            Just n' -> return $ AKey n'
-    parseJSON _ = fail "A key element must be a number or a string."
+    parseJSON _ = fail "A key element must be a string."
 
 formatKey :: Key -> Text
-formatKey (AKey i) = T.pack (show i)
 formatKey (OKey t) = T.concatMap esc t
   where
     esc :: Char -> Text
@@ -78,7 +84,7 @@ newtype Pointer = Pointer { pointerPath :: Path }
 -- "/ "
 -- >>> formatPointer (Pointer [OKey "foo"])
 -- "/foo"
--- >>> formatPointer (Pointer [OKey "foo", AKey 0])
+-- >>> formatPointer (Pointer [OKey "foo", OKey "0"])
 -- "/foo/0"
 -- >>> formatPointer (Pointer [OKey "a/b"])
 -- "/a~1b"
@@ -113,8 +119,7 @@ parsePointer t
       let l = T.split (== '~') t
       in T.concat $ take 1 l <> fmap step (tail l)
     key t
-      | T.null t         = fail "JSON components must not be empty."
-      | T.all isNumber t = return (AKey (read $ T.unpack t))
+      | T.null t         = return $ OKey ""
       | otherwise        = return $ OKey (unesc t)
 
 instance ToJSON Pointer where
@@ -130,10 +135,15 @@ instance FromJSON Pointer where
 -- | Follow a 'Pointer' through a JSON document as described in RFC 6901.
 get :: Pointer -> Value -> Result Value
 get (Pointer []) v = return v
-get (Pointer (AKey i : path)) (Array v) =
-  maybe (fail "") return (v V.!? i) >>= get (Pointer path)
+get (Pointer (OKey k : path)) (Array v) = case readIntegral k of
+  Just i -> maybe (fail "") return (v V.!? i) >>= get (Pointer path)
+  Nothing -> Error "Expected a numeric pointer for array."
 get (Pointer (OKey n : path)) (Object v) =
+#if MIN_VERSION_aeson(2,0,0)
+  maybe (fail "") return (HM.lookup (A.fromText n) v) >>= get (Pointer path)
+#else
   maybe (fail "") return (HM.lookup n v) >>= get (Pointer path)
+#endif
 get pointer value = pointerFailure pointer value
 
 -- | Report an error while following a pointer.
@@ -144,10 +154,15 @@ pointerFailure (Pointer path@(key:_)) value =
   where
     doc = encode value
     pt = encode path
-    ty = case key of
-           (AKey _) -> "array"
-           (OKey _) -> "object"
+    ty = "object"
 
+readIntegral :: (Integral a, Read a) => Text -> Maybe a
+readIntegral t = case decimal t of
+  Right (n, "") -> Just n
+  _ -> Nothing
+
+tShow :: (Integral a, Show a) => a -> Text
+tShow = T.pack . show
 
 -- $setup
 -- >>> :set -XOverloadedStrings

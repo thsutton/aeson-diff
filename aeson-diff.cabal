@@ -34,7 +34,8 @@ library
   exposed-modules:     Data.Aeson.Diff
                      , Data.Aeson.Patch
                      , Data.Aeson.Pointer
-  build-depends:       base >=4.9 && <4.16
+                     , Data.Aeson.Diff.Util
+  build-depends:       base
                      , aeson
                      , bytestring >= 0.10
                      , edit-distance-vector

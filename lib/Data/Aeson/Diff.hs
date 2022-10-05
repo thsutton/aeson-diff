@@ -1,6 +1,8 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE CPP               #-}
 
 -- | Description: Extract and apply patches on JSON documents.
 --
@@ -24,13 +26,12 @@ module Data.Aeson.Diff (
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Error.Class
-import           Data.Aeson
+import           Data.Aeson                 hiding (Key)
 import           Data.Aeson.Types           (modifyFailure, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Foldable              (foldlM)
-import           Data.Hashable
 import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.Hashable
 import           Data.List                  (groupBy, intercalate)
 import           Data.Maybe
 import           Data.Monoid
@@ -41,8 +42,17 @@ import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           Data.Vector.Distance
 
+import Data.Aeson.Diff.Util
 import Data.Aeson.Patch
 import Data.Aeson.Pointer
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key             as A
+import qualified Data.Aeson.KeyMap          as HM
+#else
+import qualified Data.HashMap.Strict        as HM
+#endif
+
 
 -- * Configuration
 
@@ -131,28 +141,28 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
     -- Walk the keys in two objects, producing a 'Patch'.
     workObject :: Pointer -> Object -> Object -> [Operation]
     workObject path o1 o2 =
-        let k1 = HM.keys o1
-            k2 = HM.keys o2
+        let k1 = textKeys o1
+            k2 = textKeys o2
             -- Deletions
             del_keys :: [Text]
             del_keys = filter (not . (`elem` k2)) k1
             deletions :: [Operation]
             deletions = concatMap
-                (\k -> del cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o1))
+                (\k -> del cfg (Pointer [OKey k]) (fromJust $ aesonLookup k o1))
                 del_keys
             -- Insertions
             ins_keys = filter (not . (`elem` k1)) k2
             insertions :: [Operation]
             insertions = concatMap
-                (\k -> ins cfg (Pointer [OKey k]) (fromJust $ HM.lookup k o2))
+                (\k -> ins cfg (Pointer [OKey k]) (fromJust $ aesonLookup k o2))
                 ins_keys
             -- Changes
             chg_keys = filter (`elem` k2) k1
             changes :: [Operation]
             changes = concatMap
                 (\k -> worker (Pointer [OKey k])
-                    (fromJust $ HM.lookup k o1)
-                    (fromJust $ HM.lookup k o2))
+                    (fromJust $ aesonLookup k o1)
+                    (fromJust $ aesonLookup k o2))
                 chg_keys
         in modifyPointer (path <>) <$> (deletions <> insertions <> changes)
 
@@ -164,9 +174,9 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
         params :: Params Value [Operation] (Sum Int)
         params = Params{..}
         equivalent = (==)
-        delete i = del cfg (Pointer [AKey i])
-        insert i = ins cfg (Pointer [AKey i])
-        substitute i = worker (Pointer [AKey i])
+        delete i = del cfg (Pointer [OKey (tShow i)])
+        insert i = ins cfg (Pointer [OKey (tShow i)])
+        substitute i = worker (Pointer [OKey (tShow i)])
         cost = Sum . sum . fmap operationCost
         -- Position is advanced by grouping operations with same "head" index:
         -- + groups of many operations advance one
@@ -244,24 +254,22 @@ applyAdd pointer = go pointer
   where
     go (Pointer []) val _ =
         return val
-    go (Pointer [AKey i]) v' (Array v) =
-        let fn :: Maybe Value -> Result (Maybe Value)
-            fn _ = return (Just v')
-        in return (Array $ vInsert i v' v)
-    go (Pointer (AKey i : path)) v' (Array v) =
-        let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing  = cannot "insert" "array" i pointer
-            fn (Just d) = Just <$> go (Pointer path) v' d
-        in Array <$> vModify i fn v
     go (Pointer [OKey n]) v' (Object m) =
-        return . Object $ HM.insert n v' m
+        return . Object $ aesonInsert n v' m
     go (Pointer (OKey n : path)) v' (Object o) =
         let fn :: Maybe Value -> Result (Maybe Value)
             fn Nothing  = cannot "insert" "object" n pointer
             fn (Just d) = Just <$> go (Pointer path) v' d
         in Object <$> hmModify n fn o
     go (Pointer (OKey n : path)) v' array@(Array v)
-        | n == "-" = go (Pointer (AKey (V.length v) : path)) v' array
+        | n == "-" = go (Pointer (OKey (tShow $ V.length v) : path)) v' array
+    go (Pointer [OKey (readIntegral -> Just i)]) v' (Array v) =
+        return (Array $ vInsert i v' v)
+    go (Pointer (OKey (readIntegral -> Just i) : path)) v' (Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing  = cannot "insert" "array" i pointer
+            fn (Just d) = Just <$> go (Pointer path) v' d
+        in Array <$> vModify i fn v
     go path _ v = pointerFailure path v
 
 -- | Apply a 'Rem' operation to a document.
@@ -273,16 +281,6 @@ applyRem :: Pointer -> Value -> Result Value
 applyRem from@(Pointer path) = go path
   where
     go [] _ = return Null
-    go [AKey i] d@(Array v) =
-        let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing  = cannot "delete" "array" i from
-            fn (Just v) = return Nothing
-        in Array <$> vModify i fn v
-    go (AKey i : path) (Array v) =
-        let fn :: Maybe Value -> Result (Maybe Value)
-            fn Nothing  = cannot "traverse" "array" i from
-            fn (Just o) = Just <$> go path o
-        in Array <$> vModify i fn v
     go [OKey n] (Object m) =
         let fn :: Maybe Value -> Result (Maybe Value)
             fn Nothing  = cannot "delete" "object" n from
@@ -295,7 +293,17 @@ applyRem from@(Pointer path) = go path
         in Object <$> hmModify n fn m
     -- Dodgy hack for "-" key which means "the end of the array".
     go (OKey n : path) array@(Array v)
-        | n == "-" = go (AKey (V.length v) : path) array
+        | n == "-" = go (OKey (tShow $ V.length v) : path) array
+    go [OKey (readIntegral -> Just i)] d@(Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing  = cannot "delete" "array" i from
+            fn (Just v) = return Nothing
+        in Array <$> vModify i fn v
+    go (OKey (readIntegral -> Just i) : path) (Array v) =
+        let fn :: Maybe Value -> Result (Maybe Value)
+            fn Nothing  = cannot "traverse" "array" i from
+            fn (Just o) = Just <$> go path o
+        in Array <$> vModify i fn v
     -- Type mismatch: clearly the thing we're deleting isn't here.
     go path value = pointerFailure from value
 
@@ -392,15 +400,22 @@ vModify i f v =
 -- function returns 'Nothing', the key and value are deleted from the map;
 -- otherwise the value replaces the existing value in the returned map.
 hmModify
+#if MIN_VERSION_aeson(2,0,0)
+    :: Text
+    -> (Maybe v -> Result (Maybe v))
+    -> HM.KeyMap v
+    -> Result (HM.KeyMap v)
+#else
     :: (Eq k, Hashable k)
     => k
     -> (Maybe v -> Result (Maybe v))
     -> HashMap k v
     -> Result (HashMap k v)
-hmModify k f m = case f (HM.lookup k m) of
+#endif
+hmModify k f m = case f (aesonLookup k m) of
     Error e          -> Error e
-    Success Nothing  -> return $ HM.delete k m
-    Success (Just v) -> return $ HM.insert k v m
+    Success Nothing  -> return $ aesonDelete k m
+    Success (Just v) -> return $ aesonInsert k v m
 
 -- | Report an error about being able to use a pointer key.
 cannot
